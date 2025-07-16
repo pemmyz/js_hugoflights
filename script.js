@@ -13,6 +13,7 @@ window.addEventListener('load', function() {
     const gameOverScreen = document.getElementById('game-over-screen');
     const helpScreen = document.getElementById('help-screen');
     const finalScoreElement = document.getElementById('final-score');
+    const gameOverReasonElement = document.getElementById('game-over-reason');
     
     // Buttons and Controls
     const startDayBtn = document.getElementById('start-day-button');
@@ -22,7 +23,6 @@ window.addEventListener('load', function() {
     const restartBtn = document.getElementById('restart-button');
     const volumeSlider = document.getElementById('volume-slider');
     const muteButton = document.getElementById('mute-button');
-    // UPDATED: Get reference to the bottom help hint
     const bottomHelpHint = document.getElementById('bottom-help-hint');
 
     const autobotCountdownDisplay = document.createElement('div');
@@ -34,6 +34,10 @@ window.addEventListener('load', function() {
     // --- GAME VARIABLES ---
     let score, health, fuel, gameSpeed, gameOver, frame, isNightMode, isAutobotMode;
     let animationFrameId;
+    let gameOverReason = '';
+    let damageMessage = { text: '', timer: 0 };
+    let isDevMode = false;
+
 
     // --- AUTOBOT/IDLE MODE ---
     let idleTimer;
@@ -59,13 +63,13 @@ window.addEventListener('load', function() {
         const engineGain = audioCtx.createGain();
         const lfo = audioCtx.createOscillator();
         engineNode.type = 'sawtooth';
-        engineNode.frequency.value = 60; 
+        engineNode.frequency.value = 60;
         lfo.type = 'square';
         lfo.frequency.value = 10;
         lfo.connect(engineGain.gain);
         engineNode.connect(engineGain);
         engineGain.connect(masterGain);
-        engineGain.gain.value = 0.0042; 
+        engineGain.gain.value = 0.0042;
         engineNode.start();
         lfo.start();
         engineSound = { node: engineNode, gain: engineGain, lfo, isPlaying: false };
@@ -102,7 +106,7 @@ window.addEventListener('load', function() {
     function toggleEngineSound(play) {
         if (!audioCtx || !engineSound) return;
         if (play && !engineSound.isPlaying) {
-            engineSound.gain.gain.value = 0.0042; 
+            engineSound.gain.gain.value = 0.0042;
             engineSound.isPlaying = true;
         } else if (!play && engineSound.isPlaying) {
             engineSound.gain.gain.value = 0;
@@ -201,9 +205,23 @@ window.addEventListener('load', function() {
             player.isThrusting = false;
         };
 
+        const stopAutobotOnInteraction = () => {
+            if (isAutobotMode) {
+                stopAutobotAndShowMenu();
+            } else {
+                clearTimeout(idleTimer);
+                clearInterval(countdownInterval);
+                autobotCountdownDisplay.style.display = 'none';
+            }
+        };
+
         window.addEventListener('keydown', (e) => {
             if (e.code === 'Space' || e.code === 'ArrowUp') startThrust(e);
             if (e.code === 'KeyH') toggleHelpScreen(true);
+            if (e.code === 'KeyD') {
+                isDevMode = !isDevMode;
+                console.log('Dev Mode:', isDevMode ? 'ON' : 'OFF');
+            }
             stopAutobotOnInteraction();
         });
         window.addEventListener('keyup', (e) => {
@@ -215,16 +233,6 @@ window.addEventListener('load', function() {
         canvas.addEventListener('touchstart', startThrust);
         canvas.addEventListener('touchend', endThrust);
         canvas.addEventListener('mouseleave', endThrust);
-
-        const stopAutobotOnInteraction = () => {
-            if (isAutobotMode) {
-                stopAutobotAndShowMenu();
-            } else {
-                clearTimeout(idleTimer);
-                clearInterval(countdownInterval);
-                autobotCountdownDisplay.style.display = 'none';
-            }
-        };
 
         window.addEventListener('mousedown', stopAutobotOnInteraction);
         window.addEventListener('touchstart', stopAutobotOnInteraction);
@@ -362,6 +370,9 @@ window.addEventListener('load', function() {
     }
     
     function startGame(nightMode, autobot = false) {
+        gameOverReason = '';
+        damageMessage = { text: '', timer: 0 };
+        
         clearTimeout(idleTimer);
         clearInterval(countdownInterval);
         autobotCountdownDisplay.style.display = 'none';
@@ -396,6 +407,8 @@ window.addEventListener('load', function() {
         gameOver = true;
         isAutobotMode = false;
         toggleEngineSound(false);
+        
+        gameOverReasonElement.textContent = gameOverReason;
         finalScoreElement.textContent = score;
         gameOverScreen.style.display = 'block';
         
@@ -422,23 +435,40 @@ window.addEventListener('load', function() {
     }
     
     function checkCollisions() {
+        // Player vs Red Balls
         redBalls.forEach((ball, index) => {
             const dist = Math.hypot(player.x + player.width / 2 - ball.x, player.y + player.height / 2 - ball.y);
             if (dist < ball.radius + player.height / 2) {
                 redBalls.splice(index, 1);
                 health -= 20;
+                damageMessage.text = 'Hit a Red Ball!';
+                damageMessage.timer = 120;
                 if (!isAutobotMode) damageSound();
             }
         });
         
+        // Player vs Thunder Clouds
         thunderClouds.forEach((cloud) => {
-            if (player.x < cloud.x + cloud.width && player.x + player.width > cloud.x &&
-                player.y < cloud.y + cloud.height && player.y + player.height > cloud.y) {
+            const playerHitboxX = player.x + player.width * 0.15;
+            const playerHitboxWidth = player.width * 0.7;
+            const playerHitboxY = player.y + player.height * 0.15;
+            const playerHitboxHeight = player.height * 0.7;
+
+            if (playerHitboxX < cloud.x + cloud.width &&
+                playerHitboxX + playerHitboxWidth > cloud.x &&
+                playerHitboxY < cloud.y + cloud.height &&
+                playerHitboxY + playerHitboxHeight > cloud.y) {
+                
                 health -= 0.5;
+                if (damageMessage.timer <= 0) {
+                    damageMessage.text = 'In a Thunder Cloud!';
+                    damageMessage.timer = 120;
+                }
                 if (frame % 30 === 0 && !isAutobotMode) damageSound();
             }
         });
         
+        // Player vs Blue Balls
         blueBalls.forEach((ball, index) => {
             const dist = Math.hypot(player.x + player.width / 2 - ball.x, player.y + player.height / 2 - ball.y);
             if (dist < ball.radius + player.height / 2) {
@@ -462,14 +492,48 @@ window.addEventListener('load', function() {
     
     function updateGameStatus() {
         fuel -= player.isThrusting ? 0.12 : 0.04;
-        if (health <= 0 || fuel <= 0) {
+        
+        if (health <= 0) {
             health = 0;
+            gameOverReason = "Ran out of health!";
+            endGame();
+        } else if (fuel <= 0) {
             fuel = 0;
+            gameOverReason = "Ran out of fuel!";
             endGame();
         }
         updateUI();
     }
     
+    function drawDamageMessage() {
+        if (damageMessage.timer > 0) {
+            ctx.font = '24px Arial';
+            ctx.textAlign = 'right';
+            let alpha = Math.min(1, damageMessage.timer / 60);
+            ctx.fillStyle = `rgba(255, 50, 50, ${alpha})`;
+            ctx.fillText(damageMessage.text, canvas.width - 20, canvas.height - 20);
+            damageMessage.timer--;
+        }
+    }
+
+    function drawDevInfo() {
+        if (!isDevMode || !player) return;
+
+        ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)';
+        ctx.lineWidth = 2;
+        const playerHitboxX = player.x + player.width * 0.15;
+        const playerHitboxWidth = player.width * 0.7;
+        const playerHitboxY = player.y + player.height * 0.15;
+        const playerHitboxHeight = player.height * 0.7;
+        ctx.strokeRect(playerHitboxX, playerHitboxY, playerHitboxWidth, playerHitboxHeight);
+        
+        ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
+        ctx.lineWidth = 2;
+        thunderClouds.forEach(cloud => {
+            ctx.strokeRect(cloud.x, cloud.y, cloud.width, cloud.height);
+        });
+    }
+
     function animate() {
         if (gameOver) {
             if (animationFrameId) cancelAnimationFrame(animationFrameId);
@@ -486,6 +550,9 @@ window.addEventListener('load', function() {
         
         player.update();
         player.draw();
+        
+        drawDamageMessage();
+        drawDevInfo();
         
         if (!isAutobotMode) {
              checkCollisions();
@@ -512,7 +579,6 @@ window.addEventListener('load', function() {
         restartBtn.addEventListener('click', showStartScreen);
         helpBtn.addEventListener('click', () => toggleHelpScreen(true));
         closeHelpBtn.addEventListener('click', () => toggleHelpScreen(false));
-        // UPDATED: Add click listener to the bottom help hint
         bottomHelpHint.addEventListener('click', () => toggleHelpScreen(true));
         
         setupEventListeners();

@@ -25,9 +25,15 @@ body.night-mode #bottom-help-hint {
     color: #ccc;
     text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.9);
 }
-/* UPDATED: Brighter color on hover for night mode */
 body.night-mode #bottom-help-hint:hover {
     color: #fff;
+}
+
+/* UPDATED: Style for the new wrapper */
+#app-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 #game-container {
@@ -164,23 +170,20 @@ button:active { transform: scale(1.0); }
 #help-button, #close-help-button { background-color: #f1c40f; color: #333; }
 #restart-button { background-color: #e74c3c; color: white; }
 
-/* Style for the help hint at the bottom */
+/* UPDATED: Style for the help hint is now relative to the document flow */
 #bottom-help-hint {
-    position: fixed;
-    bottom: 10px;
-    left: 10px;
+    width: 800px; /* Match the canvas width */
+    text-align: left;
+    margin-top: 10px;
     font-size: 16px;
     color: #333;
     text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.7);
-    z-index: 100;
-    /* UPDATED: Make it look like a button */
     cursor: pointer;
     transition: transform 0.2s, color 0.2s;
 }
 
-/* UPDATED: Add a hover effect */
 #bottom-help-hint:hover {
-    transform: scale(1.05);
+    transform: scale(1.02); /* A more subtle scale for text */
 }
 
 /* Countdown display styling */
@@ -192,5 +195,5 @@ button:active { transform: scale(1.0); }
     font-size: 20px;
     color: white;
     text-shadow: 2px 2px 4px black;
-    z-index: 110; /* Above start screen overlay */
+    z-index: 110;
 }
