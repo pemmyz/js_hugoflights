@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Side-Scrolling Flyer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>Side-Scrolling Flyer</h1>
+    <div id="game-container">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div id="hud">
+            <span id="score">Score: 0</span>
+            <span id="fuel">Fuel: 100</span>
+        </div>
+        <div id="game-over-screen" style="display: none;">
+            <h2>Game Over</h2>
+            <p>Final Score: <span id="final-score">0</span></p>
+            <button id="restart-button">Restart Game</button>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
