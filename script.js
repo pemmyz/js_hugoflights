@@ -22,11 +22,12 @@ window.addEventListener('load', function() {
     const restartBtn = document.getElementById('restart-button');
     const volumeSlider = document.getElementById('volume-slider');
     const muteButton = document.getElementById('mute-button');
+    // UPDATED: Get reference to the bottom help hint
+    const bottomHelpHint = document.getElementById('bottom-help-hint');
 
-    // UPDATED: Countdown display element
     const autobotCountdownDisplay = document.createElement('div');
     autobotCountdownDisplay.id = 'autobot-countdown';
-    autobotCountdownDisplay.style.display = 'none'; // Initially hidden
+    autobotCountdownDisplay.style.display = 'none';
     document.getElementById('game-container').appendChild(autobotCountdownDisplay);
 
 
@@ -36,7 +37,6 @@ window.addEventListener('load', function() {
 
     // --- AUTOBOT/IDLE MODE ---
     let idleTimer;
-    // UPDATED: Countdown for Autobot mode
     let autobotCountdown = 7; 
     let countdownInterval;
 
@@ -48,14 +48,13 @@ window.addEventListener('load', function() {
     let isMuted = false;
 
     function setupAudio() {
-        if (audioCtx) return; // Only run once
+        if (audioCtx) return;
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         
         masterGain = audioCtx.createGain();
         masterGain.gain.value = isMuted ? 0 : Math.pow(currentVolume, 2);
         masterGain.connect(audioCtx.destination);
         
-        // Engine sound
         const engineNode = audioCtx.createOscillator();
         const engineGain = audioCtx.createGain();
         const lfo = audioCtx.createOscillator();
@@ -205,7 +204,7 @@ window.addEventListener('load', function() {
         window.addEventListener('keydown', (e) => {
             if (e.code === 'Space' || e.code === 'ArrowUp') startThrust(e);
             if (e.code === 'KeyH') toggleHelpScreen(true);
-            if (isAutobotMode) stopAutobotAndShowMenu();
+            stopAutobotOnInteraction();
         });
         window.addEventListener('keyup', (e) => {
             if (e.code === 'Space' || e.code === 'ArrowUp') endThrust(e);
@@ -215,11 +214,20 @@ window.addEventListener('load', function() {
         canvas.addEventListener('mouseup', endThrust);
         canvas.addEventListener('touchstart', startThrust);
         canvas.addEventListener('touchend', endThrust);
-        canvas.addEventListener('mouseleave', endThrust); // Stop thrust if mouse leaves canvas
+        canvas.addEventListener('mouseleave', endThrust);
 
-        // These handlers are for stopping the Autobot mode only
-        window.addEventListener('mousedown', () => { if (isAutobotMode) stopAutobotAndShowMenu(); });
-        window.addEventListener('touchstart', () => { if (isAutobotMode) stopAutobotAndShowMenu(); });
+        const stopAutobotOnInteraction = () => {
+            if (isAutobotMode) {
+                stopAutobotAndShowMenu();
+            } else {
+                clearTimeout(idleTimer);
+                clearInterval(countdownInterval);
+                autobotCountdownDisplay.style.display = 'none';
+            }
+        };
+
+        window.addEventListener('mousedown', stopAutobotOnInteraction);
+        window.addEventListener('touchstart', stopAutobotOnInteraction);
         
         volumeSlider.addEventListener('input', (e) => {
             currentVolume = parseFloat(e.target.value);
@@ -303,37 +311,33 @@ window.addEventListener('load', function() {
         gameOverScreen.style.display = 'none';
         helpScreen.style.display = 'none';
         document.body.className = '';
-        // Reset and start the idle timer for Autobot mode
+        
         clearTimeout(idleTimer);
-        clearTimeout(countdownInterval); // Clear any running countdown
-        autobotCountdown = 7; // Reset countdown value
-        autobotCountdownDisplay.style.display = 'none'; // Hide countdown initially
+        clearInterval(countdownInterval);
+        autobotCountdownDisplay.style.display = 'none';
         
         idleTimer = setTimeout(() => {
             startAutobotCountdown();
-        }, 7000); // 7 seconds to start Autobot
+        }, 7000);
     }
     
     function toggleHelpScreen(show) {
-        // Clear all timers when interacting with Help or Start screens
         clearTimeout(idleTimer);
-        clearTimeout(countdownInterval);
+        clearInterval(countdownInterval);
+        autobotCountdownDisplay.style.display = 'none';
         
         helpScreen.style.display = show ? 'block' : 'none';
         startScreen.style.display = show ? 'none' : 'flex';
         
         if (!show) {
-             // Restart the idle timer if Help screen is closed
-             autobotCountdown = 7; // Reset countdown value
-             autobotCountdownDisplay.style.display = 'none'; // Hide countdown
              idleTimer = setTimeout(() => {
                  startAutobotCountdown();
              }, 7000);
         }
     }
-
-    // UPDATED: Function to start the Autobot countdown
+    
     function startAutobotCountdown() {
+        autobotCountdown = 7;
         autobotCountdownDisplay.textContent = `Autobot starting in ${autobotCountdown}...`;
         autobotCountdownDisplay.style.display = 'block';
         
@@ -342,11 +346,11 @@ window.addEventListener('load', function() {
             if (autobotCountdown <= 0) {
                 clearInterval(countdownInterval);
                 autobotCountdownDisplay.style.display = 'none';
-                startGame(Math.random() > 0.5, true); // Start Autobot mode
+                startGame(Math.random() > 0.5, true);
             } else {
                 autobotCountdownDisplay.textContent = `Autobot starting in ${autobotCountdown}...`;
             }
-        }, 1000); // Update every second
+        }, 1000);
     }
 
     function stopAutobotAndShowMenu() {
@@ -354,22 +358,13 @@ window.addEventListener('load', function() {
         gameOver = true;
         toggleEngineSound(false);
         if (animationFrameId) cancelAnimationFrame(animationFrameId);
-        
-        // Clear timers and reset countdown when user input stops Autobot
-        clearTimeout(idleTimer);
-        clearInterval(countdownInterval);
-        autobotCountdown = 7; // Reset for next time
-        autobotCountdownDisplay.style.display = 'none';
-        
         showStartScreen();
     }
     
     function startGame(nightMode, autobot = false) {
-        // Clear all timers when starting a new game
         clearTimeout(idleTimer);
         clearInterval(countdownInterval);
-        autobotCountdown = 7; // Reset countdown value
-        autobotCountdownDisplay.style.display = 'none'; // Ensure it's hidden
+        autobotCountdownDisplay.style.display = 'none';
 
         setupAudio();
         score = 0;
@@ -404,11 +399,8 @@ window.addEventListener('load', function() {
         finalScoreElement.textContent = score;
         gameOverScreen.style.display = 'block';
         
-        // Clear timers when game ends
         clearTimeout(idleTimer);
         clearInterval(countdownInterval);
-        autobotCountdown = 7; // Reset
-        autobotCountdownDisplay.style.display = 'none';
     }
 
     function handleObjectGeneration() {
@@ -520,6 +512,8 @@ window.addEventListener('load', function() {
         restartBtn.addEventListener('click', showStartScreen);
         helpBtn.addEventListener('click', () => toggleHelpScreen(true));
         closeHelpBtn.addEventListener('click', () => toggleHelpScreen(false));
+        // UPDATED: Add click listener to the bottom help hint
+        bottomHelpHint.addEventListener('click', () => toggleHelpScreen(true));
         
         setupEventListeners();
         
