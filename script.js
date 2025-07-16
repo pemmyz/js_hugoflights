@@ -33,6 +33,7 @@ window.addEventListener('load', function() {
 
     // --- GAME VARIABLES ---
     let score, health, fuel, gameSpeed, gameOver, frame, isNightMode, isAutobotMode;
+    let gameIsActive = false; // NEW: State to track if the game is actively being played
     let animationFrameId;
     let gameOverReason = '';
     let damageMessage = { text: '', timer: 0 };
@@ -202,6 +203,23 @@ window.addEventListener('load', function() {
         update() { this.x -= gameSpeed * (this.isThunder ? 0.6 : 0.4); }
     }
 
+    // --- PAGE VISIBILITY API FOR AUDIO ---
+    function handleVisibilityChange() {
+        // No audio context, nothing to do
+        if (!audioCtx) return;
+
+        if (document.hidden) {
+            // Page is hidden, suspend the audio if it's running
+            if (audioCtx.state === 'running') {
+                audioCtx.suspend();
+            }
+        } else {
+            // Page is visible again. Resume audio ONLY if the game is active.
+            if (gameIsActive && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+    }
 
     // --- INPUT AND EVENT LISTENERS ---
     function setupEventListeners() {
@@ -326,6 +344,7 @@ window.addEventListener('load', function() {
 
     // --- GAME STATE & LOOP ---
     function showStartScreen() {
+        gameIsActive = false; // NEW: Game is not active on the menu
         startScreen.style.display = 'flex';
         gameOverScreen.style.display = 'none';
         helpScreen.style.display = 'none';
@@ -383,6 +402,7 @@ window.addEventListener('load', function() {
     }
     
     function startGame(nightMode, autobot = false) {
+        gameIsActive = true; // NEW: Game is now active
         gameOverReason = '';
         damageMessage = { text: '', timer: 0 };
         
@@ -391,8 +411,8 @@ window.addEventListener('load', function() {
         autobotCountdownDisplay.style.display = 'none';
 
         setupAudio();
-        // Resume audio context when the game starts
-        if (audioCtx && audioCtx.state === 'suspended') {
+        // Resume audio context when the game starts (if it's not hidden)
+        if (audioCtx && audioCtx.state === 'suspended' && !document.hidden) {
             audioCtx.resume();
         }
 
@@ -423,6 +443,7 @@ window.addEventListener('load', function() {
     function endGame() {
         if (gameOver) return;
         gameOver = true;
+        gameIsActive = false; // NEW: Game is no longer active
         isAutobotMode = false;
         
         // Suspend audio context when the game ends
@@ -607,6 +628,9 @@ window.addEventListener('load', function() {
         bottomHelpHint.addEventListener('click', () => toggleHelpScreen(true));
         
         setupEventListeners();
+
+        // NEW: Add listener for page visibility changes
+        document.addEventListener('visibilitychange', handleVisibilityChange);
         
         volumeSlider.value = currentVolume;
         muteButton.textContent = isMuted ? "Unmute" : "Mute";
