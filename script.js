@@ -158,15 +158,25 @@ window.addEventListener('load', function() {
     }
     class Cloud {
         constructor(x, y, isThunder = false) {
-            this.x = x; this.y = y; this.isThunder = isThunder; this.puffs = []; this.width = 0; this.height = 0;
+            this.x = x; this.y = y; this.isThunder = isThunder; this.puffs = [];
+            
             const numPuffs = 10 + Math.random() * 5;
             let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
             for (let i = 0; i < numPuffs; i++) {
-                const offsetX = (Math.random() - 0.5) * 150; const offsetY = (Math.random() - 0.5) * 50; const radius = 20 + Math.random() * 20;
+                const offsetX = (Math.random() - 0.5) * 150;
+                const offsetY = (Math.random() - 0.5) * 50;
+                const radius = 20 + Math.random() * 20;
                 this.puffs.push({ x: offsetX, y: offsetY, radius });
-                minX = Math.min(minX, offsetX - radius); maxX = Math.max(maxX, offsetX + radius); minY = Math.min(minY, offsetY - radius); maxY = Math.max(maxY, offsetY + radius);
+                
+                minX = Math.min(minX, offsetX - radius);
+                maxX = Math.max(maxX, offsetX + radius);
+                minY = Math.min(minY, offsetY - radius);
+                maxY = Math.max(maxY, offsetY + radius);
             }
-            this.width = maxX - minX; this.height = maxY - minY;
+            this.boundingBoxOffsetX = minX;
+            this.boundingBoxOffsetY = minY;
+            this.width = maxX - minX;
+            this.height = maxY - minY;
         }
         draw() {
             this.puffs.forEach(puff => {
@@ -183,7 +193,8 @@ window.addEventListener('load', function() {
         }
         drawLightning() {
             ctx.strokeStyle = 'yellow'; ctx.lineWidth = 3; ctx.beginPath();
-            const startX = this.x + (Math.random() - 0.5) * 50; const startY = this.y + this.height / 2 - 20;
+            const startX = this.x + (Math.random() - 0.5) * 50;
+            const startY = this.y + (Math.random() - 0.5) * 20;
             ctx.moveTo(startX, startY);
             for (let i = 1; i <= 5; i++) { ctx.lineTo(startX + (Math.random() - 0.5) * 40, startY + i * 20); }
             ctx.stroke(); ctx.lineWidth = 1;
@@ -284,7 +295,7 @@ window.addEventListener('load', function() {
         });
 
         if (closestThreat) {
-            const threatCenterY = closestThreat.y + (closestThreat.height ? closestThreat.height / 2 : 0);
+            const threatCenterY = (closestThreat.y + closestThreat.boundingBoxOffsetY) + (closestThreat.height / 2);
             if (player.y > threatCenterY - 50) {
                 targetY = player.y - 100;
             } else {
@@ -428,8 +439,8 @@ window.addEventListener('load', function() {
             obj.update();
             obj.draw();
         });
-        clouds = clouds.filter(c => c.x + c.width > 0);
-        thunderClouds = thunderClouds.filter(c => c.x + c.width > 0);
+        clouds = clouds.filter(c => c.x + c.width + c.boundingBoxOffsetX > 0);
+        thunderClouds = thunderClouds.filter(c => c.x + c.width + c.boundingBoxOffsetX > 0);
         blueBalls = blueBalls.filter(b => b.x + b.radius > 0);
         redBalls = redBalls.filter(b => b.x + b.radius > 0);
     }
@@ -454,10 +465,13 @@ window.addEventListener('load', function() {
             const playerHitboxY = player.y + player.height * 0.15;
             const playerHitboxHeight = player.height * 0.7;
 
-            if (playerHitboxX < cloud.x + cloud.width &&
-                playerHitboxX + playerHitboxWidth > cloud.x &&
-                playerHitboxY < cloud.y + cloud.height &&
-                playerHitboxY + playerHitboxHeight > cloud.y) {
+            const cloudHitboxX = cloud.x + cloud.boundingBoxOffsetX;
+            const cloudHitboxY = cloud.y + cloud.boundingBoxOffsetY;
+
+            if (playerHitboxX < cloudHitboxX + cloud.width &&
+                playerHitboxX + playerHitboxWidth > cloudHitboxX &&
+                playerHitboxY < cloudHitboxY + cloud.height &&
+                playerHitboxY + playerHitboxHeight > cloudHitboxY) {
                 
                 health -= 0.5;
                 if (damageMessage.timer <= 0) {
@@ -530,7 +544,9 @@ window.addEventListener('load', function() {
         ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
         ctx.lineWidth = 2;
         thunderClouds.forEach(cloud => {
-            ctx.strokeRect(cloud.x, cloud.y, cloud.width, cloud.height);
+            const cloudHitboxX = cloud.x + cloud.boundingBoxOffsetX;
+            const cloudHitboxY = cloud.y + cloud.boundingBoxOffsetY;
+            ctx.strokeRect(cloudHitboxX, cloudHitboxY, cloud.width, cloud.height);
         });
     }
 
