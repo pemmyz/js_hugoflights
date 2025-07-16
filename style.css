@@ -29,7 +29,6 @@ body.night-mode #bottom-help-hint:hover {
     color: #fff;
 }
 
-/* UPDATED: Style for the new wrapper */
 #app-wrapper {
     display: flex;
     flex-direction: column;
@@ -170,7 +169,6 @@ button:active { transform: scale(1.0); }
 #help-button, #close-help-button { background-color: #f1c40f; color: #333; }
 #restart-button { background-color: #e74c3c; color: white; }
 
-/* UPDATED: Style for the help hint is now relative to the document flow */
 #bottom-help-hint {
     width: 800px; /* Match the canvas width */
     text-align: left;
@@ -183,10 +181,9 @@ button:active { transform: scale(1.0); }
 }
 
 #bottom-help-hint:hover {
-    transform: scale(1.02); /* A more subtle scale for text */
+    transform: scale(1.02);
 }
 
-/* Countdown display styling */
 #autobot-countdown {
     position: absolute;
     bottom: 20px;
@@ -196,4 +193,22 @@ button:active { transform: scale(1.0); }
     color: white;
     text-shadow: 2px 2px 4px black;
     z-index: 110;
+}
+
+/* Styling for the new section in the help menu */
+#help-screen .controls-section {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #ccc;
+    text-align: left;
+    display: inline-block;
+}
+
+#help-screen .controls-section h3 {
+    text-align: center;
+    margin-bottom: 10px;
+}
+
+#help-screen .controls-section li {
+    margin-bottom: 5px;
 }

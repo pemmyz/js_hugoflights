@@ -50,6 +50,16 @@
                 </ul>
                 <p>Your flight ends if you run out of <strong>Health</strong> or <strong>Fuel</strong>.</p>
                 
+                <!-- Bot help section -->
+                <div class="controls-section">
+                    <h3>Bot Controls (In-Game)</h3>
+                    <ul>
+                        <li><strong>B Key:</strong> Toggle the autopilot Bot ON/OFF.</li>
+                        <li><strong>1 Key:</strong> Activates "Collector Mode" (focuses on blue balls).</li>
+                        <li><strong>2 Key:</strong> Activates "Smart Mode" (avoids threats & collects balls).</li>
+                    </ul>
+                </div>
+
                 <div id="audio-controls">
                     <label for="volume-slider">Volume:</label>
                     <input type="range" id="volume-slider" min="0" max="1" step="0.01">
@@ -62,7 +72,6 @@
             <!-- Game Over Screen -->
             <div id="game-over-screen" class="overlay" style="display: none;">
                 <h2>Game Over</h2>
-                <!-- NEW: Element to show the reason for game over -->
                 <p id="game-over-reason">You crashed!</p>
                 <p>Final Score: <span id="final-score">0</span></p>
                 <button id="restart-button">Back to Main Menu</button>

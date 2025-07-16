@@ -32,19 +32,20 @@ window.addEventListener('load', function() {
 
 
     // --- GAME VARIABLES ---
-    let score, health, fuel, gameSpeed, gameOver, frame, isNightMode, isAutobotMode;
-    let gameIsActive = false; // NEW: State to track if the game is actively being played
+    let score, health, fuel, gameSpeed, gameOver, frame, isNightMode;
+    let gameIsActive = false;
     let animationFrameId;
     let gameOverReason = '';
     let damageMessage = { text: '', timer: 0 };
     let isDevMode = false;
 
-
     // --- AUTOBOT/IDLE MODE ---
     let idleTimer;
     let autobotCountdown = 7; 
     let countdownInterval;
-
+    
+    let isBotActive = false;
+    let activeBotMode = 1;
 
     // --- AUDIO SETUP ---
     let audioCtx, masterGain;
@@ -181,12 +182,7 @@ window.addEventListener('load', function() {
         }
         draw() {
             this.puffs.forEach(puff => {
-                let color;
-                if (this.isThunder) {
-                    color = isNightMode ? 'rgba(40, 40, 50, 0.8)' : 'rgba(80, 80, 90, 0.8)';
-                } else {
-                    color = isNightMode ? 'rgba(100, 100, 120, 0.6)' : 'rgba(255, 255, 255, 0.7)';
-                }
+                let color = this.isThunder ? (isNightMode ? 'rgba(40, 40, 50, 0.8)' : 'rgba(80, 80, 90, 0.8)') : (isNightMode ? 'rgba(100, 100, 120, 0.6)' : 'rgba(255, 255, 255, 0.7)');
                 ctx.fillStyle = color;
                 ctx.beginPath(); ctx.arc(this.x + puff.x, this.y + puff.y, puff.radius, 0, Math.PI * 2); ctx.fill();
             });
@@ -205,54 +201,69 @@ window.addEventListener('load', function() {
 
     // --- PAGE VISIBILITY API FOR AUDIO ---
     function handleVisibilityChange() {
-        // No audio context, nothing to do
         if (!audioCtx) return;
-
         if (document.hidden) {
-            // Page is hidden, suspend the audio if it's running
-            if (audioCtx.state === 'running') {
-                audioCtx.suspend();
-            }
+            if (audioCtx.state === 'running') audioCtx.suspend();
         } else {
-            // Page is visible again. Resume audio ONLY if the game is active.
-            if (gameIsActive && audioCtx.state === 'suspended') {
-                audioCtx.resume();
-            }
+            if (gameIsActive && audioCtx.state === 'suspended') audioCtx.resume();
         }
     }
 
     // --- INPUT AND EVENT LISTENERS ---
     function setupEventListeners() {
         const startThrust = (e) => {
-            if (gameOver || !player) return;
+            if (gameOver || !player || isBotActive) return;
             e.preventDefault();
             player.isThrusting = true;
         };
         const endThrust = (e) => {
-            if (gameOver || !player) return;
+            if (gameOver || !player || isBotActive) return;
             e.preventDefault();
             player.isThrusting = false;
         };
 
         const stopAutobotOnInteraction = () => {
-            if (isAutobotMode) {
+            if (isBotActive) { // This will be true if the auto-start DEMO is running
                 stopAutobotAndShowMenu();
-            } else {
+            } else { // This handles a user waiting on the main menu
                 clearTimeout(idleTimer);
                 clearInterval(countdownInterval);
                 autobotCountdownDisplay.style.display = 'none';
             }
         };
 
+        // Refactored keydown listener to fix bot controls
         window.addEventListener('keydown', (e) => {
+            // --- Bot Controls (Highest Priority) ---
+            // These have specific in-game functions and should not trigger other interactions.
+            if (gameIsActive) {
+                if (e.code === 'KeyB') {
+                    isBotActive = !isBotActive;
+                    console.log(`%cBot Mode is now ${isBotActive ? 'ACTIVE' : 'INACTIVE'} (Mode ${activeBotMode})`, 'color: #00A0F0; font-weight: bold;');
+                    if (!isBotActive) player.isThrusting = false; // Stop thrusting when bot is deactivated
+                    return; // EXIT EARLY: Prevent this key from triggering other actions
+                }
+                if (['1', '2', '3', '4'].includes(e.key)) {
+                    activeBotMode = parseInt(e.key);
+                    console.log(`%cBot personality set to: ${activeBotMode}`, 'color: #00A0F0; font-weight: bold;');
+                    return; // EXIT EARLY: Prevent this key from triggering other actions
+                }
+            }
+
+            // --- Other Game Controls ---
             if (e.code === 'Space' || e.code === 'ArrowUp') startThrust(e);
             if (e.code === 'KeyH') toggleHelpScreen(true);
             if (e.code === 'KeyD') {
                 isDevMode = !isDevMode;
                 console.log('Dev Mode:', isDevMode ? 'ON' : 'OFF');
             }
+            
+            // --- Interaction Stopper for Demo/Menu ---
+            // This is now only triggered by non-bot keys. It stops the idle demo
+            // or cancels the countdown timer on the main menu.
             stopAutobotOnInteraction();
         });
+
         window.addEventListener('keyup', (e) => {
             if (e.code === 'Space' || e.code === 'ArrowUp') endThrust(e);
         });
@@ -272,13 +283,8 @@ window.addEventListener('load', function() {
                 const newGain = Math.pow(currentVolume, 2);
                 masterGain.gain.setTargetAtTime(newGain, audioCtx.currentTime, 0.01);
             }
-            if (currentVolume > 0 && isMuted) {
-                isMuted = false;
-                muteButton.textContent = "Mute";
-            } else if (currentVolume <= 0.01 && !isMuted) {
-                isMuted = true;
-                muteButton.textContent = "Unmute";
-            }
+            isMuted = currentVolume <= 0.01;
+            muteButton.textContent = isMuted ? "Unmute" : "Mute";
         });
 
         muteButton.addEventListener('click', () => {
@@ -286,65 +292,85 @@ window.addEventListener('load', function() {
             if (isMuted) {
                 if (masterGain) masterGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.01);
                 volumeSlider.value = 0;
-                muteButton.textContent = "Unmute";
             } else {
-                if (masterGain) masterGain.gain.setTargetAtTime(Math.pow(currentVolume, 2), audioCtx.currentTime, 0.01);
+                currentVolume = currentVolume > 0.01 ? currentVolume : 0.1;
                 volumeSlider.value = currentVolume;
-                muteButton.textContent = "Mute";
+                if (masterGain) masterGain.gain.setTargetAtTime(Math.pow(currentVolume, 2), audioCtx.currentTime, 0.01);
             }
+            muteButton.textContent = isMuted ? "Unmute" : "Mute";
         });
     }
 
-    // --- AUTOBOT AI LOGIC ---
-    function runAutobotAI(){
-        let targetY = canvas.height / 2;
-        const threats = [...redBalls, ...thunderClouds];
-        let closestThreat = null;
-        let minThreatDist = 350;
-
-        threats.forEach(t => {
-            if (t.x > player.x - 50 && t.x < player.x + 350) {
-                const dist = t.x - player.x;
-                if (dist < minThreatDist) {
-                    minThreatDist = dist;
-                    closestThreat = t;
-                }
+    // --- BOT AI ALGORITHMS ---
+    function botMode_CollectBlue() {
+        let target = null;
+        let closestDist = Infinity;
+        blueBalls.forEach(ball => {
+            const dist = ball.x - (player.x + player.width);
+            if (dist > 0 && dist < closestDist) {
+                closestDist = dist;
+                target = ball;
             }
         });
 
-        if (closestThreat) {
-            const threatCenterY = (closestThreat.y + closestThreat.boundingBoxOffsetY) + (closestThreat.height / 2);
-            if (player.y > threatCenterY - 50) {
-                targetY = player.y - 100;
-            } else {
-                targetY = player.y + 100;
-            }
-        } else {
-            let closestBall = null;
-            let minBallDist = 400;
-            blueBalls.forEach(b => {
-                if (b.x > player.x && b.x < player.x + 400) {
-                    const dist = b.x - player.x;
-                    if (dist < minBallDist) {
-                        minBallDist = dist;
-                        closestBall = b;
-                    }
-                }
-            });
-            if (closestBall) {
-                targetY = closestBall.y;
-            }
-        }
-        if (player.y > targetY) {
+        let targetY = target ? target.y : canvas.height / 2;
+
+        if (player.y > targetY + 5) {
             player.isThrusting = true;
-        } else {
+        } else if (player.y < targetY - 5) {
             player.isThrusting = false;
         }
     }
 
+    function botMode_AvoidAndCollect() {
+        const threats = [...redBalls, ...thunderClouds];
+        let closestThreat = null;
+        let minThreatDist = 400;
+
+        threats.forEach(threat => {
+            const dist = threat.x - (player.x + player.width);
+            if (dist > -threat.width && dist < minThreatDist) {
+                closestThreat = threat;
+                minThreatDist = dist;
+            }
+        });
+
+        if (closestThreat) {
+            let threatTop, threatBottom;
+            const safeMargin = player.height * 1.5;
+
+            if (closestThreat instanceof Ball) {
+                threatTop = closestThreat.y - closestThreat.radius;
+                threatBottom = closestThreat.y + closestThreat.radius;
+            } else {
+                threatTop = closestThreat.y + closestThreat.boundingBoxOffsetY;
+                threatBottom = threatTop + closestThreat.height;
+            }
+
+            const canGoOver = threatTop > safeMargin;
+            const canGoUnder = threatBottom < canvas.height - safeMargin;
+            let targetY;
+
+            if (player.y > threatBottom && canGoUnder) targetY = threatBottom + safeMargin;
+            else if (player.y < threatTop && canGoOver) targetY = threatTop - safeMargin;
+            else if (canGoOver && !canGoUnder) targetY = threatTop - safeMargin;
+            else if (!canGoOver && canGoUnder) targetY = threatBottom + safeMargin;
+            else {
+                targetY = Math.abs(player.y - (threatTop - safeMargin)) < Math.abs(player.y - (threatBottom + safeMargin))
+                    ? threatTop - safeMargin
+                    : threatBottom + safeMargin;
+            }
+            
+            player.isThrusting = player.y > targetY;
+            return;
+        }
+        botMode_CollectBlue();
+    }
+
     // --- GAME STATE & LOOP ---
     function showStartScreen() {
-        gameIsActive = false; // NEW: Game is not active on the menu
+        gameIsActive = false;
+        isBotActive = false;
         startScreen.style.display = 'flex';
         gameOverScreen.style.display = 'none';
         helpScreen.style.display = 'none';
@@ -354,12 +380,9 @@ window.addEventListener('load', function() {
         clearInterval(countdownInterval);
         autobotCountdownDisplay.style.display = 'none';
         
-        // Suspend audio context when in the menu
         if (audioCtx) audioCtx.suspend();
         
-        idleTimer = setTimeout(() => {
-            startAutobotCountdown();
-        }, 7000);
+        idleTimer = setTimeout(() => startAutobotCountdown(), 7000);
     }
     
     function toggleHelpScreen(show) {
@@ -371,15 +394,13 @@ window.addEventListener('load', function() {
         startScreen.style.display = show ? 'none' : 'flex';
         
         if (!show) {
-             idleTimer = setTimeout(() => {
-                 startAutobotCountdown();
-             }, 7000);
+             idleTimer = setTimeout(() => startAutobotCountdown(), 7000);
         }
     }
     
     function startAutobotCountdown() {
         autobotCountdown = 7;
-        autobotCountdownDisplay.textContent = `Autobot starting in ${autobotCountdown}...`;
+        autobotCountdownDisplay.textContent = `Autobot demo starting in ${autobotCountdown}...`;
         autobotCountdownDisplay.style.display = 'block';
         
         countdownInterval = setInterval(() => {
@@ -387,22 +408,22 @@ window.addEventListener('load', function() {
             if (autobotCountdown <= 0) {
                 clearInterval(countdownInterval);
                 autobotCountdownDisplay.style.display = 'none';
-                startGame(Math.random() > 0.5, true);
+                startGame(Math.random() > 0.5, true); 
             } else {
-                autobotCountdownDisplay.textContent = `Autobot starting in ${autobotCountdown}...`;
+                autobotCountdownDisplay.textContent = `Autobot demo starting in ${autobotCountdown}...`;
             }
         }, 1000);
     }
 
     function stopAutobotAndShowMenu() {
-        isAutobotMode = false;
+        isBotActive = false;
         gameOver = true;
         if (animationFrameId) cancelAnimationFrame(animationFrameId);
         showStartScreen();
     }
     
-    function startGame(nightMode, autobot = false) {
-        gameIsActive = true; // NEW: Game is now active
+    function startGame(nightMode, startWithBot = false) {
+        gameIsActive = true;
         gameOverReason = '';
         damageMessage = { text: '', timer: 0 };
         
@@ -411,26 +432,21 @@ window.addEventListener('load', function() {
         autobotCountdownDisplay.style.display = 'none';
 
         setupAudio();
-        // Resume audio context when the game starts (if it's not hidden)
         if (audioCtx && audioCtx.state === 'suspended' && !document.hidden) {
             audioCtx.resume();
         }
 
-        score = 0;
-        health = 100;
-        fuel = 100;
-        gameSpeed = 3;
-        gameOver = false;
-        frame = 0;
+        score = 0; health = 100; fuel = 100;
+        gameSpeed = 3; gameOver = false; frame = 0;
         isNightMode = nightMode;
-        isAutobotMode = autobot;
+        
+        isBotActive = startWithBot;
+        activeBotMode = 2;
+
         player = Object.create(playerProto);
-        player.y = 300;
-        player.velocityY = 0;
-        blueBalls = [];
-        redBalls = [];
-        clouds = [];
-        thunderClouds = [];
+        player.y = 300; player.velocityY = 0;
+        blueBalls = []; redBalls = []; clouds = []; thunderClouds = [];
+        
         document.body.className = isNightMode ? 'night-mode' : '';
         startScreen.style.display = 'none';
         gameOverScreen.style.display = 'none';
@@ -443,10 +459,9 @@ window.addEventListener('load', function() {
     function endGame() {
         if (gameOver) return;
         gameOver = true;
-        gameIsActive = false; // NEW: Game is no longer active
-        isAutobotMode = false;
+        gameIsActive = false;
+        isBotActive = false;
         
-        // Suspend audio context when the game ends
         if (audioCtx) audioCtx.suspend();
         
         gameOverReasonElement.textContent = gameOverReason;
@@ -476,50 +491,37 @@ window.addEventListener('load', function() {
     }
     
     function checkCollisions() {
-        // Player vs Red Balls
         redBalls.forEach((ball, index) => {
             const dist = Math.hypot(player.x + player.width / 2 - ball.x, player.y + player.height / 2 - ball.y);
             if (dist < ball.radius + player.height / 2) {
                 redBalls.splice(index, 1);
                 health -= 20;
-                damageMessage.text = 'Hit a Red Ball!';
-                damageMessage.timer = 120;
-                if (!isAutobotMode) damageSound();
+                damageMessage = { text: 'Hit a Red Ball!', timer: 120 };
+                if (!isBotActive) damageSound();
             }
         });
         
-        // Player vs Thunder Clouds
         thunderClouds.forEach((cloud) => {
-            const playerHitboxX = player.x + player.width * 0.15;
-            const playerHitboxWidth = player.width * 0.7;
-            const playerHitboxY = player.y + player.height * 0.15;
-            const playerHitboxHeight = player.height * 0.7;
+            const playerHitboxX = player.x + player.width * 0.15, playerHitboxY = player.y + player.height * 0.15;
+            const playerHitboxWidth = player.width * 0.7, playerHitboxHeight = player.height * 0.7;
+            const cloudHitboxX = cloud.x + cloud.boundingBoxOffsetX, cloudHitboxY = cloud.y + cloud.boundingBoxOffsetY;
 
-            const cloudHitboxX = cloud.x + cloud.boundingBoxOffsetX;
-            const cloudHitboxY = cloud.y + cloud.boundingBoxOffsetY;
-
-            if (playerHitboxX < cloudHitboxX + cloud.width &&
-                playerHitboxX + playerHitboxWidth > cloudHitboxX &&
-                playerHitboxY < cloudHitboxY + cloud.height &&
-                playerHitboxY + playerHitboxHeight > cloudHitboxY) {
+            if (playerHitboxX < cloudHitboxX + cloud.width && playerHitboxX + playerHitboxWidth > cloudHitboxX &&
+                playerHitboxY < cloudHitboxY + cloud.height && playerHitboxY + playerHitboxHeight > cloudHitboxY) {
                 
                 health -= 0.5;
-                if (damageMessage.timer <= 0) {
-                    damageMessage.text = 'In a Thunder Cloud!';
-                    damageMessage.timer = 120;
-                }
-                if (frame % 30 === 0 && !isAutobotMode) damageSound();
+                if (damageMessage.timer <= 0) damageMessage = { text: 'In a Thunder Cloud!', timer: 120 };
+                if (frame % 30 === 0 && !isBotActive) damageSound();
             }
         });
         
-        // Player vs Blue Balls
         blueBalls.forEach((ball, index) => {
             const dist = Math.hypot(player.x + player.width / 2 - ball.x, player.y + player.height / 2 - ball.y);
             if (dist < ball.radius + player.height / 2) {
                 blueBalls.splice(index, 1);
                 score += 10;
                 fuel = Math.min(100, fuel + 5);
-                if (!isAutobotMode) collectSound();
+                if (!isBotActive) collectSound();
             }
         });
     }
@@ -553,8 +555,7 @@ window.addEventListener('load', function() {
         if (damageMessage.timer > 0) {
             ctx.font = '24px Arial';
             ctx.textAlign = 'right';
-            let alpha = Math.min(1, damageMessage.timer / 60);
-            ctx.fillStyle = `rgba(255, 50, 50, ${alpha})`;
+            ctx.fillStyle = `rgba(255, 50, 50, ${Math.min(1, damageMessage.timer / 60)})`;
             ctx.fillText(damageMessage.text, canvas.width - 20, canvas.height - 20);
             damageMessage.timer--;
         }
@@ -562,20 +563,14 @@ window.addEventListener('load', function() {
 
     function drawDevInfo() {
         if (!isDevMode || !player) return;
-
-        ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)';
-        ctx.lineWidth = 2;
-        const playerHitboxX = player.x + player.width * 0.15;
-        const playerHitboxWidth = player.width * 0.7;
-        const playerHitboxY = player.y + player.height * 0.15;
-        const playerHitboxHeight = player.height * 0.7;
+        ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'; ctx.lineWidth = 2;
+        const playerHitboxX = player.x + player.width * 0.15, playerHitboxY = player.y + player.height * 0.15;
+        const playerHitboxWidth = player.width * 0.7, playerHitboxHeight = player.height * 0.7;
         ctx.strokeRect(playerHitboxX, playerHitboxY, playerHitboxWidth, playerHitboxHeight);
         
-        ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)'; ctx.lineWidth = 2;
         thunderClouds.forEach(cloud => {
-            const cloudHitboxX = cloud.x + cloud.boundingBoxOffsetX;
-            const cloudHitboxY = cloud.y + cloud.boundingBoxOffsetY;
+            const cloudHitboxX = cloud.x + cloud.boundingBoxOffsetX, cloudHitboxY = cloud.y + cloud.boundingBoxOffsetY;
             ctx.strokeRect(cloudHitboxX, cloudHitboxY, cloud.width, cloud.height);
         });
     }
@@ -590,8 +585,12 @@ window.addEventListener('load', function() {
         handleObjectGeneration();
         updateAndDrawObjects();
         
-        if (isAutobotMode) {
-            runAutobotAI();
+        if (isBotActive && player) {
+            switch(activeBotMode) {
+                case 1: botMode_CollectBlue(); break;
+                case 2: botMode_AvoidAndCollect(); break;
+                default: player.isThrusting = false;
+            }
         }
         
         player.update();
@@ -599,21 +598,9 @@ window.addEventListener('load', function() {
         
         drawDamageMessage();
         drawDevInfo();
-        
-        if (!isAutobotMode) {
-             checkCollisions();
-        } else {
-             blueBalls.forEach((ball, index) => {
-                const dist = Math.hypot(player.x + player.width / 2 - ball.x, player.y + player.height / 2 - ball.y);
-                if (dist < ball.radius + player.height / 2) {
-                    blueBalls.splice(index, 1);
-                    score += 10;
-                    fuel = Math.min(100, fuel + 5);
-                }
-            });
-        }
-        
+        checkCollisions();
         updateGameStatus();
+
         frame++;
         animationFrameId = requestAnimationFrame(animate);
     }
@@ -628,8 +615,6 @@ window.addEventListener('load', function() {
         bottomHelpHint.addEventListener('click', () => toggleHelpScreen(true));
         
         setupEventListeners();
-
-        // NEW: Add listener for page visibility changes
         document.addEventListener('visibilitychange', handleVisibilityChange);
         
         volumeSlider.value = currentVolume;
