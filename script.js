@@ -335,6 +335,9 @@ window.addEventListener('load', function() {
         clearInterval(countdownInterval);
         autobotCountdownDisplay.style.display = 'none';
         
+        // Suspend audio context when in the menu
+        if (audioCtx) audioCtx.suspend();
+        
         idleTimer = setTimeout(() => {
             startAutobotCountdown();
         }, 7000);
@@ -375,7 +378,6 @@ window.addEventListener('load', function() {
     function stopAutobotAndShowMenu() {
         isAutobotMode = false;
         gameOver = true;
-        toggleEngineSound(false);
         if (animationFrameId) cancelAnimationFrame(animationFrameId);
         showStartScreen();
     }
@@ -389,6 +391,11 @@ window.addEventListener('load', function() {
         autobotCountdownDisplay.style.display = 'none';
 
         setupAudio();
+        // Resume audio context when the game starts
+        if (audioCtx && audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+
         score = 0;
         health = 100;
         fuel = 100;
@@ -417,7 +424,9 @@ window.addEventListener('load', function() {
         if (gameOver) return;
         gameOver = true;
         isAutobotMode = false;
-        toggleEngineSound(false);
+        
+        // Suspend audio context when the game ends
+        if (audioCtx) audioCtx.suspend();
         
         gameOverReasonElement.textContent = gameOverReason;
         finalScoreElement.textContent = score;
