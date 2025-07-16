@@ -7,19 +7,68 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>Side-Scrolling Flyer</h1>
+    <div id="help-key-hint">H - key for Help</div>
+
     <div id="game-container">
         <canvas id="gameCanvas" width="800" height="600"></canvas>
+        
+        <!-- Heads-Up Display -->
         <div id="hud">
             <span id="score">Score: 0</span>
-            <span id="fuel">Fuel: 100</span>
+            <div id="health-container">
+                <span>Health:</span>
+                <div id="health-bar-outer">
+                    <div id="health-bar-inner"></div>
+                </div>
+            </div>
+            <div id="fuel-container">
+                <span>Fuel:</span>
+                <div id="fuel-bar-outer">
+                    <div id="fuel-bar-inner"></div>
+                </div>
+            </div>
         </div>
-        <div id="game-over-screen" style="display: none;">
+
+        <!-- Start Screen -->
+        <div id="start-screen">
+            <h2>Side-Scrolling Flyer</h2>
+            <p>Choose your flight time:</p>
+            <button id="start-day-button">Start Day Flight</button>
+            <button id="start-night-button">Start Night Flight</button>
+            <button id="help-button">How to Play</button>
+            <p class="autobot-info">Wait for Autobot demo...</p>
+        </div>
+
+        <!-- Help Screen -->
+        <div id="help-screen" class="overlay" style="display: none;">
+            <h2>How to Play</h2>
+            <p><strong>Controls:</strong> Press <strong>Spacebar</strong>, <strong>ArrowUp</strong>, or <strong>Tap the Screen</strong> to fly up.</p>
+            <p><strong>Objective:</strong> Fly as far as you can and collect points!</p>
+            <ul>
+                <li><strong style="color: blue;">Collect Blue Balls:</strong> Gain points and restore fuel.</li>
+                <li><strong style="color: red;">Avoid Red Balls:</strong> These will damage your plane.</li>
+                <li><strong style="color: #444;">Avoid Thunder Clouds:</strong> These will severely damage your plane.</li>
+            </ul>
+            <p>Your flight ends if you run out of <strong>Health</strong> or <strong>Fuel</strong>.</p>
+            
+            <!-- NEW: Audio Controls -->
+            <div id="audio-controls">
+                <label for="volume-slider">Volume:</label>
+                <input type="range" id="volume-slider" min="0" max="1" step="0.01">
+                <button id="mute-button">Mute</button>
+            </div>
+
+            <button id="close-help-button">Close</button>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="game-over-screen" class="overlay" style="display: none;">
             <h2>Game Over</h2>
             <p>Final Score: <span id="final-score">0</span></p>
-            <button id="restart-button">Restart Game</button>
+            <button id="restart-button">Back to Main Menu</button>
         </div>
     </div>
+    
     <script src="script.js"></script>
 </body>
 </html>
