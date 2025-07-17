@@ -39,7 +39,7 @@ window.addEventListener('load', function() {
     let gameOverReason = '';
     let damageMessage = { text: '', timer: 0 };
     let isDevMode = false;
-
+    
     // --- AUTOBOT/IDLE MODE ---
     let idleTimer;
     let autobotCountdown = 7; 
@@ -47,6 +47,7 @@ window.addEventListener('load', function() {
     
     let isBotActive = false;
     let activeBotMode = 1; // Default bot mode
+    let botTarget = null; // <<< MODIFICATION: Stores the bot's current target for dev drawing
 
     // --- AUDIO SETUP ---
     let audioCtx, masterGain;
@@ -238,7 +239,10 @@ window.addEventListener('load', function() {
                 if (e.code === 'KeyB') {
                     isBotActive = !isBotActive;
                     console.log(`%cBot Mode is now ${isBotActive ? 'ACTIVE' : 'INACTIVE'} (Mode ${activeBotMode})`, 'color: #00A0F0; font-weight: bold;');
-                    if (!isBotActive) player.isThrusting = false;
+                    if (!isBotActive) {
+                        player.isThrusting = false;
+                        botTarget = null; // <<< MODIFICATION: Clear target when bot is deactivated
+                    }
                     return; 
                 }
                 if (['1', '2', '3', '4'].includes(e.key)) {
@@ -250,7 +254,6 @@ window.addEventListener('load', function() {
 
             if (e.code === 'Space' || e.code === 'ArrowUp') startThrust(e);
             
-            // --- MODIFIED: H-key now toggles help screen ---
             if (e.code === 'KeyH') {
                 const isHelpVisible = helpScreen.style.display === 'block';
                 toggleHelpScreen(!isHelpVisible);
@@ -305,6 +308,7 @@ window.addEventListener('load', function() {
 
     // Mode 1: Seeks blue balls and ignores everything else.
     function botMode_Collector() {
+        botTarget = null; // Reset target
         let target = null;
         let closestDist = Infinity;
         blueBalls.forEach(ball => {
@@ -314,6 +318,8 @@ window.addEventListener('load', function() {
                 target = ball;
             }
         });
+
+        botTarget = target; // <<< MODIFICATION: Set the target
 
         if (target) {
             let targetY = target.y;
@@ -326,6 +332,7 @@ window.addEventListener('load', function() {
 
     // Mode 2: The "Smart" bot. Avoids threats, then collects balls.
     function botMode_Smart() {
+        botTarget = null; // Reset target
         const threats = [...redBalls, ...thunderClouds];
         let closestThreat = null;
         let minThreatDist = 400;
@@ -354,14 +361,24 @@ window.addEventListener('load', function() {
                     ? threatTop - safeMargin
                     : threatBottom + safeMargin;
             
+            // <<< MODIFICATION: Set a virtual target for drawing
+            botTarget = {
+                x: closestThreat.x, // Target the threat's X
+                y: targetY,         // But the calculated safe Y
+                isVirtual: true,    // Flag to identify this type
+            };
+            
             player.isThrusting = player.y > targetY;
             return;
         }
+        
+        // If no threat, fall back to collector, which will set its own target
         botMode_Collector();
     }
 
     // Mode 3: Focuses only on avoiding threats.
     function botMode_Avoider() {
+        botTarget = null; // Reset target
         const threats = [...redBalls, ...thunderClouds];
         let closestThreat = null;
         let minThreatDist = 450;
@@ -390,9 +407,24 @@ window.addEventListener('load', function() {
                     ? threatTop - safeMargin
                     : threatBottom + safeMargin;
             
+            // <<< MODIFICATION: Set a virtual target for drawing
+            botTarget = {
+                x: closestThreat.x,
+                y: targetY,
+                isVirtual: true,
+            };
+
             player.isThrusting = player.y > targetY;
         } else {
             const middleY = canvas.height / 2;
+            
+            // <<< MODIFICATION: Set a virtual target for staying in the middle
+            botTarget = {
+                x: player.x + 200, // Just a point in front of the player
+                y: middleY,
+                isVirtual: true,
+            };
+
             if (player.y > middleY + 10) player.isThrusting = true;
             else if (player.y < middleY - 10) player.isThrusting = false;
             else player.isThrusting = false;
@@ -401,6 +433,7 @@ window.addEventListener('load', function() {
 
     // Mode 4: Actively seeks out threats.
     function botMode_Kamikaze() {
+        botTarget = null; // Reset target
         let target = null;
         let closestDist = Infinity;
         const allThreats = [...redBalls, ...thunderClouds];
@@ -412,6 +445,8 @@ window.addEventListener('load', function() {
                  target = threat;
              }
         });
+        
+        botTarget = target; // <<< MODIFICATION: Set the target
 
         if (target) {
             let targetY;
@@ -449,12 +484,9 @@ window.addEventListener('load', function() {
         idleTimer = setTimeout(() => startAutobotCountdown(), 7000);
     }
     
-    // --- MODIFIED: Smarter help screen toggle ---
     function toggleHelpScreen(show) {
         helpScreen.style.display = show ? 'block' : 'none';
 
-        // Only manipulate start screen and timers if the game is NOT active.
-        // This prevents the start screen from appearing over an active game.
         if (!gameIsActive) {
             clearTimeout(idleTimer);
             clearInterval(countdownInterval);
@@ -462,7 +494,6 @@ window.addEventListener('load', function() {
 
             startScreen.style.display = show ? 'none' : 'flex';
             
-            // If we are closing help and returning to the main menu, restart the idle timer.
             if (!show) { 
                  idleTimer = setTimeout(() => startAutobotCountdown(), 7000);
             }
@@ -513,6 +544,7 @@ window.addEventListener('load', function() {
         
         isBotActive = startWithBot;
         activeBotMode = 2; // Default to Smart Mode for demo
+        botTarget = null; // <<< MODIFICATION: Reset target on game start
 
         player = Object.create(playerProto);
         player.y = 300; player.velocityY = 0;
@@ -532,6 +564,7 @@ window.addEventListener('load', function() {
         gameOver = true;
         gameIsActive = false;
         isBotActive = false;
+        botTarget = null; // <<< MODIFICATION: Clear target on game over
         
         if (audioCtx) audioCtx.suspend();
         
@@ -650,6 +683,8 @@ window.addEventListener('load', function() {
 
     function drawDevInfo() {
         if (!isDevMode || !player) return;
+
+        // Draw existing hitboxes
         ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'; ctx.lineWidth = 2;
         const playerHitboxX = player.x + player.width * 0.15, playerHitboxY = player.y + player.height * 0.15;
         const playerHitboxWidth = player.width * 0.7, playerHitboxHeight = player.height * 0.7;
@@ -660,6 +695,48 @@ window.addEventListener('load', function() {
             const cloudHitboxX = cloud.x + cloud.boundingBoxOffsetX, cloudHitboxY = cloud.y + cloud.boundingBoxOffsetY;
             ctx.strokeRect(cloudHitboxX, cloudHitboxY, cloud.width, cloud.height);
         });
+
+        // <<< MODIFICATION START: Draw Bot Target and Path >>>
+        if (isBotActive && botTarget) {
+            ctx.save();
+            
+            let targetX, targetY;
+
+            // Determine target coordinates based on its type
+            if (botTarget.isVirtual) { // A calculated point (e.g., evasion point)
+                targetX = botTarget.x;
+                targetY = botTarget.y;
+            } else if (botTarget instanceof Ball) { // A ball object
+                targetX = botTarget.x;
+                targetY = botTarget.y;
+            } else if (botTarget instanceof Cloud) { // A cloud object (for Kamikaze mode)
+                targetX = botTarget.x + botTarget.boundingBoxOffsetX + botTarget.width / 2;
+                targetY = botTarget.y + botTarget.boundingBoxOffsetY + botTarget.height / 2;
+            }
+
+            if (targetX !== undefined && targetY !== undefined) {
+                // Draw the planned path line from player to target
+                ctx.beginPath();
+                ctx.moveTo(player.x + player.width / 2, player.y + player.height / 2);
+                ctx.lineTo(targetX, targetY);
+                ctx.strokeStyle = 'cyan';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]); // Dashed line for a "planned" look
+                ctx.stroke();
+                ctx.setLineDash([]); // Reset line dash for other drawings
+
+                // Draw a marker on the target
+                // Yellow for virtual/calculated targets, Lime for physical objects
+                ctx.strokeStyle = botTarget.isVirtual ? 'yellow' : 'lime';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(targetX, targetY, 20, 0, Math.PI * 2); // Circle around target
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        }
+        // <<< MODIFICATION END >>>
     }
 
     function animate() {
@@ -670,7 +747,6 @@ window.addEventListener('load', function() {
         
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         handleObjectGeneration();
-        updateAndDrawObjects();
         
         if (isBotActive && player) {
             switch(activeBotMode) {
@@ -678,16 +754,18 @@ window.addEventListener('load', function() {
                 case 2: botMode_Smart(); break;
                 case 3: botMode_Avoider(); break;
                 case 4: botMode_Kamikaze(); break;
-                default: player.isThrusting = false;
+                default: player.isThrusting = false; botTarget = null;
             }
         }
         
         player.update();
+        
+        updateAndDrawObjects(); // Draw objects before player so player is on top
         player.draw();
         
         drawBotModeStatus();
         drawDamageMessage();
-        drawDevInfo();
+        drawDevInfo(); // Draw dev info on top of everything
         checkCollisions();
         updateGameStatus();
 
@@ -703,7 +781,6 @@ window.addEventListener('load', function() {
         helpBtn.addEventListener('click', () => toggleHelpScreen(true));
         closeHelpBtn.addEventListener('click', () => toggleHelpScreen(false));
         
-        // --- MODIFIED: Bottom hint now toggles help screen ---
         bottomHelpHint.addEventListener('click', () => {
             const isHelpVisible = helpScreen.style.display === 'block';
             toggleHelpScreen(!isHelpVisible);
