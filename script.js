@@ -296,15 +296,33 @@ window.addEventListener('load', function() {
     }
 
     // --- BOT AI ALGORITHMS ---
-    // This is the core logic function used by all bot modes.
-    // It's configured by a `config` object to produce different behaviors.
-    function universalBotLogic(config) {
-        const { threatDetectionRange, safeMarginMultiplier, collectibleChaseRange } = config;
 
-        // 1. Find the most immediate threat
+    // Mode 1: Seeks blue balls and ignores everything else.
+    function botMode_Collector() {
+        let target = null;
+        let closestDist = Infinity;
+        blueBalls.forEach(ball => {
+            const dist = ball.x - (player.x + player.width);
+            if (dist > 0 && dist < closestDist) {
+                closestDist = dist;
+                target = ball;
+            }
+        });
+
+        if (target) {
+            let targetY = target.y;
+            if (player.y > targetY + 5) player.isThrusting = true;
+            else if (player.y < targetY - 5) player.isThrusting = false;
+        } else {
+            player.isThrusting = false;
+        }
+    }
+
+    // Mode 2: The "Smart" bot. Avoids threats, then collects balls.
+    function botMode_Smart() {
         const threats = [...redBalls, ...thunderClouds];
         let closestThreat = null;
-        let minThreatDist = threatDetectionRange;
+        let minThreatDist = 400;
 
         threats.forEach(threat => {
             const dist = threat.x - (player.x + player.width);
@@ -314,89 +332,97 @@ window.addEventListener('load', function() {
             }
         });
 
-        // 2. If a threat is detected, prioritize avoiding it
         if (closestThreat) {
             let threatTop, threatBottom;
-            const safeMargin = player.height * safeMarginMultiplier;
+            const safeMargin = player.height * 1.5;
 
             if (closestThreat instanceof Ball) {
                 threatTop = closestThreat.y - closestThreat.radius;
                 threatBottom = closestThreat.y + closestThreat.radius;
-            } else { // It's a cloud
+            } else {
                 threatTop = closestThreat.y + closestThreat.boundingBoxOffsetY;
                 threatBottom = threatTop + closestThreat.height;
             }
             
-            // Decide whether to go over or under the threat
-            const playerCenterY = player.y + player.height / 2;
-            const pathOverCost = playerCenterY > threatTop ? Infinity : Math.abs(player.y - (threatTop - safeMargin));
-            const pathUnderCost = playerCenterY < threatBottom ? Infinity : Math.abs(player.y - (threatBottom + safeMargin));
-
-            const targetY = pathOverCost < pathUnderCost ? threatTop - safeMargin : threatBottom + safeMargin;
+            const targetY = Math.abs(player.y - (threatTop - safeMargin)) < Math.abs(player.y - (threatBottom + safeMargin))
+                    ? threatTop - safeMargin
+                    : threatBottom + safeMargin;
             
             player.isThrusting = player.y > targetY;
-            return; // Exit after deciding on avoidance
-        }
-
-        // 3. If no threats, look for collectibles
-        let targetCollectible = null;
-        let closestCollectibleDist = collectibleChaseRange;
-
-        blueBalls.forEach(ball => {
-            const dist = ball.x - (player.x + player.width);
-            if (dist > 0 && dist < closestCollectibleDist) {
-                closestCollectibleDist = dist;
-                targetCollectible = ball;
-            }
-        });
-        
-        // 4. If a collectible is found, go for it
-        if (targetCollectible) {
-            let targetY = targetCollectible.y;
-            if (player.y > targetY + 5) player.isThrusting = true;
-            else if (player.y < targetY - 5) player.isThrusting = false;
             return;
         }
-
-        // 5. If no threats and no collectibles, hover in the middle
-        const middleY = canvas.height / 2;
-        if (player.y > middleY + 10) player.isThrusting = true;
-        else if (player.y < middleY - 10) player.isThrusting = false;
-        else player.isThrusting = false;
+        botMode_Collector();
     }
 
-    // Bot Personalities - Each calls the universal logic with a different config
-    function botMode_Cautious() { // Mode 1
-        universalBotLogic({
-            threatDetectionRange: 500,       // Sees threats from far away
-            safeMarginMultiplier: 2.0,       // Keeps a large distance
-            collectibleChaseRange: Infinity  // Will still chase collectibles if safe
+    // Mode 3: Focuses only on avoiding threats.
+    function botMode_Avoider() {
+        const threats = [...redBalls, ...thunderClouds];
+        let closestThreat = null;
+        let minThreatDist = 450;
+
+        threats.forEach(threat => {
+            const dist = threat.x - (player.x + player.width);
+            if (dist > -threat.width && dist < minThreatDist) {
+                closestThreat = threat;
+                minThreatDist = dist;
+            }
         });
+
+        if (closestThreat) {
+            let threatTop, threatBottom;
+            const safeMargin = player.height * 1.8;
+
+            if (closestThreat instanceof Ball) {
+                threatTop = closestThreat.y - closestThreat.radius;
+                threatBottom = closestThreat.y + closestThreat.radius;
+            } else { 
+                threatTop = closestThreat.y + closestThreat.boundingBoxOffsetY;
+                threatBottom = threatTop + closestThreat.height;
+            }
+            
+            const targetY = Math.abs(player.y - (threatTop - safeMargin)) < Math.abs(player.y - (threatBottom + safeMargin))
+                    ? threatTop - safeMargin
+                    : threatBottom + safeMargin;
+            
+            player.isThrusting = player.y > targetY;
+        } else {
+            const middleY = canvas.height / 2;
+            if (player.y > middleY + 10) player.isThrusting = true;
+            else if (player.y < middleY - 10) player.isThrusting = false;
+            else player.isThrusting = false;
+        }
     }
 
-    function botMode_Balanced() { // Mode 2
-        universalBotLogic({
-            threatDetectionRange: 400,       // Standard detection range
-            safeMarginMultiplier: 1.5,       // Standard safety margin
-            collectibleChaseRange: Infinity  // Standard behavior
+    // Mode 4: Actively seeks out threats.
+    function botMode_Kamikaze() {
+        let target = null;
+        let closestDist = Infinity;
+        const allThreats = [...redBalls, ...thunderClouds];
+
+        allThreats.forEach(threat => {
+             const dist = (threat.x) - (player.x + player.width);
+             if (dist > -50 && dist < closestDist) {
+                 closestDist = dist;
+                 target = threat;
+             }
         });
+
+        if (target) {
+            let targetY;
+            if (target instanceof Ball) {
+                targetY = target.y;
+            } else {
+                targetY = target.y + target.boundingBoxOffsetY + (target.height / 2);
+            }
+            
+            if (player.y > targetY + 5) player.isThrusting = true;
+            else if (player.y < targetY - 5) player.isThrusting = false;
+            else player.isThrusting = false;
+        } else {
+            player.isThrusting = false;
+        }
     }
 
-    function botMode_Aggressive() { // Mode 3
-        universalBotLogic({
-            threatDetectionRange: 350,       // Reacts later to threats
-            safeMarginMultiplier: 1.1,       // Flies closer to danger
-            collectibleChaseRange: Infinity  // Aggressively chases collectibles
-        });
-    }
-
-    function botMode_Opportunist() { // Mode 4
-        universalBotLogic({
-            threatDetectionRange: 420,       // Standard detection
-            safeMarginMultiplier: 1.6,       // A bit cautious
-            collectibleChaseRange: 300       // ONLY goes for very close collectibles
-        });
-    }
 
     // --- GAME STATE & LOOP ---
     function showStartScreen() {
@@ -473,7 +499,7 @@ window.addEventListener('load', function() {
         isNightMode = nightMode;
         
         isBotActive = startWithBot;
-        activeBotMode = 2; // Default to Balanced Mode for demo
+        activeBotMode = 2; // Default to Smart Mode for demo
 
         player = Object.create(playerProto);
         player.y = 300; player.velocityY = 0;
@@ -597,10 +623,10 @@ window.addEventListener('load', function() {
         if (isBotActive) {
             let modeName = "Unknown";
             switch(activeBotMode) {
-                case 1: modeName = "Cautious"; break;
-                case 2: modeName = "Balanced"; break;
-                case 3: modeName = "Aggressive"; break;
-                case 4: modeName = "Opportunist"; break;
+                case 1: modeName = "Collector"; break;
+                case 2: modeName = "Smart"; break;
+                case 3: modeName = "Avoider"; break;
+                case 4: modeName = "Kamikaze"; break;
             }
             botModeDisplay.innerHTML = `Bot Mode: ${modeName}<br>(${activeBotMode})`;
             botModeDisplay.style.display = 'block';
@@ -635,10 +661,10 @@ window.addEventListener('load', function() {
         
         if (isBotActive && player) {
             switch(activeBotMode) {
-                case 1: botMode_Cautious(); break;
-                case 2: botMode_Balanced(); break;
-                case 3: botMode_Aggressive(); break;
-                case 4: botMode_Opportunist(); break;
+                case 1: botMode_Collector(); break;
+                case 2: botMode_Smart(); break;
+                case 3: botMode_Avoider(); break;
+                case 4: botMode_Kamikaze(); break;
                 default: player.isThrusting = false;
             }
         }
