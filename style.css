@@ -105,6 +105,11 @@ canvas {
     border: 2px solid #333;
     box-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
     min-width: 400px;
+
+    /* --- FIX STARTS HERE --- */
+    max-height: 90%;      /* Prevent overlay from being taller than its container */
+    overflow-y: auto;     /* Add a scrollbar if content overflows vertically */
+    /* --- FIX ENDS HERE --- */
 }
 
 #start-screen {
@@ -117,6 +122,9 @@ canvas {
     align-items: center;
     color: white;
     text-align: center;
+    /* Remove the fix from the start screen as it should always be fullscreen */
+    max-height: none;
+    overflow-y: hidden;
 }
 #start-screen h2 { font-size: 48px; text-shadow: 3px 3px 5px #000; }
 #start-screen p { font-size: 20px; }

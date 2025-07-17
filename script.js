@@ -249,7 +249,13 @@ window.addEventListener('load', function() {
             }
 
             if (e.code === 'Space' || e.code === 'ArrowUp') startThrust(e);
-            if (e.code === 'KeyH') toggleHelpScreen(true);
+            
+            // --- MODIFIED: H-key now toggles help screen ---
+            if (e.code === 'KeyH') {
+                const isHelpVisible = helpScreen.style.display === 'block';
+                toggleHelpScreen(!isHelpVisible);
+            }
+            
             if (e.code === 'KeyD') {
                 isDevMode = !isDevMode;
                 console.log('Dev Mode:', isDevMode ? 'ON' : 'OFF');
@@ -443,16 +449,23 @@ window.addEventListener('load', function() {
         idleTimer = setTimeout(() => startAutobotCountdown(), 7000);
     }
     
+    // --- MODIFIED: Smarter help screen toggle ---
     function toggleHelpScreen(show) {
-        clearTimeout(idleTimer);
-        clearInterval(countdownInterval);
-        autobotCountdownDisplay.style.display = 'none';
-        
         helpScreen.style.display = show ? 'block' : 'none';
-        startScreen.style.display = show ? 'none' : 'flex';
-        
-        if (!show) {
-             idleTimer = setTimeout(() => startAutobotCountdown(), 7000);
+
+        // Only manipulate start screen and timers if the game is NOT active.
+        // This prevents the start screen from appearing over an active game.
+        if (!gameIsActive) {
+            clearTimeout(idleTimer);
+            clearInterval(countdownInterval);
+            autobotCountdownDisplay.style.display = 'none';
+
+            startScreen.style.display = show ? 'none' : 'flex';
+            
+            // If we are closing help and returning to the main menu, restart the idle timer.
+            if (!show) { 
+                 idleTimer = setTimeout(() => startAutobotCountdown(), 7000);
+            }
         }
     }
     
@@ -689,7 +702,12 @@ window.addEventListener('load', function() {
         restartBtn.addEventListener('click', showStartScreen);
         helpBtn.addEventListener('click', () => toggleHelpScreen(true));
         closeHelpBtn.addEventListener('click', () => toggleHelpScreen(false));
-        bottomHelpHint.addEventListener('click', () => toggleHelpScreen(true));
+        
+        // --- MODIFIED: Bottom hint now toggles help screen ---
+        bottomHelpHint.addEventListener('click', () => {
+            const isHelpVisible = helpScreen.style.display === 'block';
+            toggleHelpScreen(!isHelpVisible);
+        });
         
         setupEventListeners();
         document.addEventListener('visibilitychange', handleVisibilityChange);
