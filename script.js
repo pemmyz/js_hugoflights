@@ -14,6 +14,7 @@ window.addEventListener('load', function() {
     const helpScreen = document.getElementById('help-screen');
     const finalScoreElement = document.getElementById('final-score');
     const gameOverReasonElement = document.getElementById('game-over-reason');
+    const botModeDisplay = document.getElementById('bot-mode-display');
     
     // Buttons and Controls
     const startDayBtn = document.getElementById('start-day-button');
@@ -45,7 +46,7 @@ window.addEventListener('load', function() {
     let countdownInterval;
     
     let isBotActive = false;
-    let activeBotMode = 1;
+    let activeBotMode = 1; // Default bot mode
 
     // --- AUDIO SETUP ---
     let audioCtx, masterGain;
@@ -232,25 +233,21 @@ window.addEventListener('load', function() {
             }
         };
 
-        // Refactored keydown listener to fix bot controls
         window.addEventListener('keydown', (e) => {
-            // --- Bot Controls (Highest Priority) ---
-            // These have specific in-game functions and should not trigger other interactions.
             if (gameIsActive) {
                 if (e.code === 'KeyB') {
                     isBotActive = !isBotActive;
                     console.log(`%cBot Mode is now ${isBotActive ? 'ACTIVE' : 'INACTIVE'} (Mode ${activeBotMode})`, 'color: #00A0F0; font-weight: bold;');
-                    if (!isBotActive) player.isThrusting = false; // Stop thrusting when bot is deactivated
-                    return; // EXIT EARLY: Prevent this key from triggering other actions
+                    if (!isBotActive) player.isThrusting = false;
+                    return; 
                 }
                 if (['1', '2', '3', '4'].includes(e.key)) {
                     activeBotMode = parseInt(e.key);
                     console.log(`%cBot personality set to: ${activeBotMode}`, 'color: #00A0F0; font-weight: bold;');
-                    return; // EXIT EARLY: Prevent this key from triggering other actions
+                    return; 
                 }
             }
 
-            // --- Other Game Controls ---
             if (e.code === 'Space' || e.code === 'ArrowUp') startThrust(e);
             if (e.code === 'KeyH') toggleHelpScreen(true);
             if (e.code === 'KeyD') {
@@ -258,9 +255,6 @@ window.addEventListener('load', function() {
                 console.log('Dev Mode:', isDevMode ? 'ON' : 'OFF');
             }
             
-            // --- Interaction Stopper for Demo/Menu ---
-            // This is now only triggered by non-bot keys. It stops the idle demo
-            // or cancels the countdown timer on the main menu.
             stopAutobotOnInteraction();
         });
 
@@ -302,7 +296,7 @@ window.addEventListener('load', function() {
     }
 
     // --- BOT AI ALGORITHMS ---
-    function botMode_CollectBlue() {
+    function botMode_CollectBlue() { // Mode 1
         let target = null;
         let closestDist = Infinity;
         blueBalls.forEach(ball => {
@@ -322,7 +316,7 @@ window.addEventListener('load', function() {
         }
     }
 
-    function botMode_AvoidAndCollect() {
+    function botMode_AvoidAndCollect() { // Mode 2
         const threats = [...redBalls, ...thunderClouds];
         let closestThreat = null;
         let minThreatDist = 400;
@@ -367,6 +361,67 @@ window.addEventListener('load', function() {
         botMode_CollectBlue();
     }
 
+    function botMode_AvoidOnly() { // Mode 3
+        const threats = [...redBalls, ...thunderClouds];
+        let closestThreat = null;
+        let minThreatDist = 450; 
+
+        threats.forEach(threat => {
+            const dist = threat.x - (player.x + player.width);
+            if (dist > -threat.width && dist < minThreatDist) {
+                closestThreat = threat;
+                minThreatDist = dist;
+            }
+        });
+
+        if (closestThreat) {
+            let threatTop, threatBottom;
+            const safeMargin = player.height * 1.8;
+
+            if (closestThreat instanceof Ball) {
+                threatTop = closestThreat.y - closestThreat.radius;
+                threatBottom = closestThreat.y + closestThreat.radius;
+            } else { 
+                threatTop = closestThreat.y + closestThreat.boundingBoxOffsetY;
+                threatBottom = threatTop + closestThreat.height;
+            }
+            
+            const targetY = Math.abs(player.y - (threatTop - safeMargin)) < Math.abs(player.y - (threatBottom + safeMargin))
+                    ? threatTop - safeMargin
+                    : threatBottom + safeMargin;
+            
+            player.isThrusting = player.y > targetY;
+        } else {
+            const middleY = canvas.height / 2;
+            if (player.y > middleY + 10) player.isThrusting = true;
+            else if (player.y < middleY - 10) player.isThrusting = false;
+            else player.isThrusting = false;
+        }
+    }
+
+    function botMode_Kamikaze() { // Mode 4
+        let target = null;
+        let closestDist = Infinity;
+        const allThreats = [...redBalls, ...thunderClouds];
+
+        allThreats.forEach(threat => {
+             const dist = (threat.x) - (player.x + player.width);
+             if (dist > -threat.width && dist < closestDist) {
+                 closestDist = dist;
+                 target = threat;
+             }
+        });
+
+        if (target) {
+            let targetY = target.y;
+             if (player.y > targetY + 5) player.isThrusting = true;
+             else if (player.y < targetY - 5) player.isThrusting = false;
+        } else {
+            player.isThrusting = false;
+        }
+    }
+
+
     // --- GAME STATE & LOOP ---
     function showStartScreen() {
         gameIsActive = false;
@@ -374,6 +429,7 @@ window.addEventListener('load', function() {
         startScreen.style.display = 'flex';
         gameOverScreen.style.display = 'none';
         helpScreen.style.display = 'none';
+        botModeDisplay.style.display = 'none';
         document.body.className = '';
         
         clearTimeout(idleTimer);
@@ -441,7 +497,7 @@ window.addEventListener('load', function() {
         isNightMode = nightMode;
         
         isBotActive = startWithBot;
-        activeBotMode = 2;
+        activeBotMode = 2; // Default to Smart Mode for demo
 
         player = Object.create(playerProto);
         player.y = 300; player.velocityY = 0;
@@ -560,6 +616,22 @@ window.addEventListener('load', function() {
             damageMessage.timer--;
         }
     }
+    
+    function drawBotModeStatus() {
+        if (isBotActive) {
+            let modeName = "Unknown";
+            switch(activeBotMode) {
+                case 1: modeName = "Collector"; break;
+                case 2: modeName = "Smart"; break;
+                case 3: modeName = "Avoider"; break;
+                case 4: modeName = "Kamikaze"; break;
+            }
+            botModeDisplay.innerHTML = `Bot Mode: ${modeName}<br>(${activeBotMode})`;
+            botModeDisplay.style.display = 'block';
+        } else {
+            botModeDisplay.style.display = 'none';
+        }
+    }
 
     function drawDevInfo() {
         if (!isDevMode || !player) return;
@@ -589,6 +661,8 @@ window.addEventListener('load', function() {
             switch(activeBotMode) {
                 case 1: botMode_CollectBlue(); break;
                 case 2: botMode_AvoidAndCollect(); break;
+                case 3: botMode_AvoidOnly(); break;
+                case 4: botMode_Kamikaze(); break;
                 default: player.isThrusting = false;
             }
         }
@@ -596,6 +670,7 @@ window.addEventListener('load', function() {
         player.update();
         player.draw();
         
+        drawBotModeStatus();
         drawDamageMessage();
         drawDevInfo();
         checkCollisions();

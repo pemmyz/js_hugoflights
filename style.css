@@ -195,6 +195,23 @@ button:active { transform: scale(1.0); }
     z-index: 110;
 }
 
+/* Styling for the bot mode display */
+.overlay-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 32px;
+    font-weight: bold;
+    color: rgba(255, 255, 255, 0.7);
+    text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.8);
+    pointer-events: none; /* Crucial to not block clicks */
+    z-index: 100;
+    display: none; /* Initially hidden */
+    text-align: center;
+}
+
+
 /* Styling for the new section in the help menu */
 #help-screen .controls-section {
     margin-top: 20px;
