@@ -26,6 +26,12 @@ window.addEventListener('load', function() {
     const muteButton = document.getElementById('mute-button');
     const bottomHelpHint = document.getElementById('bottom-help-hint');
 
+    // Developer Tools Elements
+    const devControlsSection = document.getElementById('dev-controls-section');
+    const devToggleHitboxes = document.getElementById('dev-toggle-hitboxes');
+    const devToggleBotPath = document.getElementById('dev-toggle-bot-path');
+    const devToggleBotTarget = document.getElementById('dev-toggle-bot-target');
+
     const autobotCountdownDisplay = document.createElement('div');
     autobotCountdownDisplay.id = 'autobot-countdown';
     autobotCountdownDisplay.style.display = 'none';
@@ -38,16 +44,23 @@ window.addEventListener('load', function() {
     let animationFrameId;
     let gameOverReason = '';
     let damageMessage = { text: '', timer: 0 };
-    let isDevMode = false;
     
+    // Developer Mode State
+    let isDevMode = false; 
+    let devSettings = {
+        showHitboxes: false,
+        showBotPath: false,
+        showBotTarget: false
+    };
+
     // --- AUTOBOT/IDLE MODE ---
     let idleTimer;
     let autobotCountdown = 7; 
     let countdownInterval;
     
     let isBotActive = false;
-    let activeBotMode = 1; // Default bot mode
-    let botTarget = null; // <<< MODIFICATION: Stores the bot's current target for dev drawing
+    let activeBotMode = 1; 
+    let botTarget = null; 
 
     // --- AUDIO SETUP ---
     let audioCtx, masterGain;
@@ -241,7 +254,7 @@ window.addEventListener('load', function() {
                     console.log(`%cBot Mode is now ${isBotActive ? 'ACTIVE' : 'INACTIVE'} (Mode ${activeBotMode})`, 'color: #00A0F0; font-weight: bold;');
                     if (!isBotActive) {
                         player.isThrusting = false;
-                        botTarget = null; // <<< MODIFICATION: Clear target when bot is deactivated
+                        botTarget = null; 
                     }
                     return; 
                 }
@@ -261,6 +274,7 @@ window.addEventListener('load', function() {
             
             if (e.code === 'KeyD') {
                 isDevMode = !isDevMode;
+                devControlsSection.style.display = isDevMode ? 'block' : 'none';
                 console.log('Dev Mode:', isDevMode ? 'ON' : 'OFF');
             }
             
@@ -302,13 +316,17 @@ window.addEventListener('load', function() {
             }
             muteButton.textContent = isMuted ? "Unmute" : "Mute";
         });
+
+        // Add event listeners for dev checkboxes
+        devToggleHitboxes.addEventListener('change', () => { devSettings.showHitboxes = devToggleHitboxes.checked; });
+        devToggleBotPath.addEventListener('change', () => { devSettings.showBotPath = devToggleBotPath.checked; });
+        devToggleBotTarget.addEventListener('change', () => { devSettings.showBotTarget = devToggleBotTarget.checked; });
     }
 
     // --- BOT AI ALGORITHMS ---
 
-    // Mode 1: Seeks blue balls and ignores everything else.
     function botMode_Collector() {
-        botTarget = null; // Reset target
+        botTarget = null;
         let target = null;
         let closestDist = Infinity;
         blueBalls.forEach(ball => {
@@ -319,7 +337,7 @@ window.addEventListener('load', function() {
             }
         });
 
-        botTarget = target; // <<< MODIFICATION: Set the target
+        botTarget = target;
 
         if (target) {
             let targetY = target.y;
@@ -329,56 +347,131 @@ window.addEventListener('load', function() {
             player.isThrusting = false;
         }
     }
+    
+    // =================================================================
+    // /// MODIFICATION START: New Smart Bot Logic & Helper Function ///
+    // =================================================================
 
-    // Mode 2: The "Smart" bot. Avoids threats, then collects balls.
+    /**
+     * Checks if the path to a target is obstructed by any threats.
+     * @param {object} target - The target object (e.g., a blue ball).
+     * @param {array} threats - An array of all current threats.
+     * @param {number} margin - Extra safety padding around threats.
+     * @returns {boolean} - True if the path is safe, false otherwise.
+     */
+    function isPathToTargetSafe(target, threats, margin) {
+        const pathTop = Math.min(player.y, target.y) - margin;
+        const pathBottom = Math.max(player.y + player.height, target.y) + margin;
+        const pathLeft = player.x + player.width;
+        const pathRight = target.x;
+
+        for (const threat of threats) {
+            let threatLeft, threatRight, threatTop, threatBottom;
+
+            if (threat instanceof Ball) {
+                threatLeft = threat.x - threat.radius;
+                threatRight = threat.x + threat.radius;
+                threatTop = threat.y - threat.radius;
+                threatBottom = threat.y + threat.radius;
+            } else { // Cloud
+                threatLeft = threat.x + threat.boundingBoxOffsetX;
+                threatRight = threatLeft + threat.width;
+                threatTop = threat.y + threat.boundingBoxOffsetY;
+                threatBottom = threatTop + threat.height;
+            }
+
+            // Simple AABB collision check between the path rectangle and threat hitbox
+            if (pathLeft < threatRight && pathRight > threatLeft &&
+                pathTop < threatBottom && pathBottom > threatTop) {
+                return false; // Path is NOT safe
+            }
+        }
+        return true; // Path is safe
+    }
+
+    /**
+     * Advanced "Smart" bot. Prioritizes survival, then seeks safe collectibles.
+     */
     function botMode_Smart() {
-        botTarget = null; // Reset target
-        const threats = [...redBalls, ...thunderClouds];
-        let closestThreat = null;
-        let minThreatDist = 400;
+        botTarget = null; // Reset target each frame
+        const allThreats = [...redBalls, ...thunderClouds];
+        const DANGER_ZONE_RADIUS = 225; // Critical distance to force evasion
+        const SAFE_PATH_MARGIN = player.height * 0.75; // Extra padding for path checking
 
-        threats.forEach(threat => {
+        // 1. SURVIVAL: Check for immediate threats in the danger zone.
+        let mostUrgentThreat = null;
+        let minThreatDist = Infinity;
+
+        allThreats.forEach(threat => {
             const dist = threat.x - (player.x + player.width);
             if (dist > -threat.width && dist < minThreatDist) {
-                closestThreat = threat;
                 minThreatDist = dist;
+                mostUrgentThreat = threat;
             }
         });
 
-        if (closestThreat) {
+        if (mostUrgentThreat && minThreatDist < DANGER_ZONE_RADIUS) {
+            // Evasion is the ONLY priority.
             let threatTop, threatBottom;
-            const safeMargin = player.height * 1.5;
+            const evadeMargin = player.height * 1.5;
 
-            if (closestThreat instanceof Ball) {
-                threatTop = closestThreat.y - closestThreat.radius;
-                threatBottom = closestThreat.y + closestThreat.radius;
-            } else {
-                threatTop = closestThreat.y + closestThreat.boundingBoxOffsetY;
-                threatBottom = threatTop + closestThreat.height;
+            if (mostUrgentThreat instanceof Ball) {
+                threatTop = mostUrgentThreat.y - mostUrgentThreat.radius;
+                threatBottom = mostUrgentThreat.y + mostUrgentThreat.radius;
+            } else { // Cloud
+                threatTop = mostUrgentThreat.y + mostUrgentThreat.boundingBoxOffsetY;
+                threatBottom = threatTop + mostUrgentThreat.height;
             }
-            
-            const targetY = Math.abs(player.y - (threatTop - safeMargin)) < Math.abs(player.y - (threatBottom + safeMargin))
-                    ? threatTop - safeMargin
-                    : threatBottom + safeMargin;
-            
-            // <<< MODIFICATION: Set a virtual target for drawing
-            botTarget = {
-                x: closestThreat.x, // Target the threat's X
-                y: targetY,         // But the calculated safe Y
-                isVirtual: true,    // Flag to identify this type
-            };
-            
-            player.isThrusting = player.y > targetY;
-            return;
+
+            const evadeY = Math.abs(player.y - (threatTop - evadeMargin)) < Math.abs(player.y - (threatBottom + evadeMargin))
+                ? threatTop - evadeMargin
+                : threatBottom + evadeMargin;
+
+            botTarget = { x: mostUrgentThreat.x, y: evadeY, isVirtual: true };
+            player.isThrusting = player.y > evadeY;
+            return; // Exit function after deciding to evade.
+        }
+
+        // 2. OPPORTUNITY: Find the best collectible to target.
+        let bestCollectible = null;
+        let minCollectibleDist = Infinity;
+
+        blueBalls.forEach(ball => {
+            const dist = ball.x - (player.x + player.width);
+            // Only consider balls in front of the player
+            if (dist > 0 && dist < minCollectibleDist) {
+                minCollectibleDist = dist;
+                bestCollectible = ball;
+            }
+        });
+
+        // 3. VALIDATION: If a collectible was found, check if it's safe to get.
+        if (bestCollectible) {
+            if (isPathToTargetSafe(bestCollectible, allThreats, SAFE_PATH_MARGIN)) {
+                // Path is clear! Go for the ball.
+                botTarget = bestCollectible;
+                player.isThrusting = player.y > bestCollectible.y;
+                return;
+            }
         }
         
-        // If no threat, fall back to collector, which will set its own target
-        botMode_Collector();
+        // 4. DEFAULT BEHAVIOR: No immediate threats and no safe collectibles.
+        // Cautiously move towards the center of the screen to stay safe.
+        const middleY = canvas.height / 2;
+        botTarget = { x: player.x + 200, y: middleY, isVirtual: true };
+        if (Math.abs(player.y - middleY) < 20) {
+            player.isThrusting = false; // We are centered, no need to move.
+        } else {
+            player.isThrusting = player.y > middleY;
+        }
     }
+    
+    // =================================================================
+    // /// MODIFICATION END: New Smart Bot Logic & Helper Function ///
+    // =================================================================
 
-    // Mode 3: Focuses only on avoiding threats.
     function botMode_Avoider() {
-        botTarget = null; // Reset target
+        botTarget = null;
         const threats = [...redBalls, ...thunderClouds];
         let closestThreat = null;
         let minThreatDist = 450;
@@ -407,7 +500,6 @@ window.addEventListener('load', function() {
                     ? threatTop - safeMargin
                     : threatBottom + safeMargin;
             
-            // <<< MODIFICATION: Set a virtual target for drawing
             botTarget = {
                 x: closestThreat.x,
                 y: targetY,
@@ -418,9 +510,8 @@ window.addEventListener('load', function() {
         } else {
             const middleY = canvas.height / 2;
             
-            // <<< MODIFICATION: Set a virtual target for staying in the middle
             botTarget = {
-                x: player.x + 200, // Just a point in front of the player
+                x: player.x + 200,
                 y: middleY,
                 isVirtual: true,
             };
@@ -431,9 +522,8 @@ window.addEventListener('load', function() {
         }
     }
 
-    // Mode 4: Actively seeks out threats.
     function botMode_Kamikaze() {
-        botTarget = null; // Reset target
+        botTarget = null;
         let target = null;
         let closestDist = Infinity;
         const allThreats = [...redBalls, ...thunderClouds];
@@ -446,7 +536,7 @@ window.addEventListener('load', function() {
              }
         });
         
-        botTarget = target; // <<< MODIFICATION: Set the target
+        botTarget = target;
 
         if (target) {
             let targetY;
@@ -486,6 +576,10 @@ window.addEventListener('load', function() {
     
     function toggleHelpScreen(show) {
         helpScreen.style.display = show ? 'block' : 'none';
+        
+        if (show) {
+            devControlsSection.style.display = isDevMode ? 'block' : 'none';
+        }
 
         if (!gameIsActive) {
             clearTimeout(idleTimer);
@@ -543,8 +637,8 @@ window.addEventListener('load', function() {
         isNightMode = nightMode;
         
         isBotActive = startWithBot;
-        activeBotMode = 2; // Default to Smart Mode for demo
-        botTarget = null; // <<< MODIFICATION: Reset target on game start
+        activeBotMode = 2;
+        botTarget = null;
 
         player = Object.create(playerProto);
         player.y = 300; player.velocityY = 0;
@@ -564,7 +658,7 @@ window.addEventListener('load', function() {
         gameOver = true;
         gameIsActive = false;
         isBotActive = false;
-        botTarget = null; // <<< MODIFICATION: Clear target on game over
+        botTarget = null;
         
         if (audioCtx) audioCtx.suspend();
         
@@ -682,61 +776,58 @@ window.addEventListener('load', function() {
     }
 
     function drawDevInfo() {
-        if (!isDevMode || !player) return;
+        if (!player) return;
 
-        // Draw existing hitboxes
-        ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'; ctx.lineWidth = 2;
-        const playerHitboxX = player.x + player.width * 0.15, playerHitboxY = player.y + player.height * 0.15;
-        const playerHitboxWidth = player.width * 0.7, playerHitboxHeight = player.height * 0.7;
-        ctx.strokeRect(playerHitboxX, playerHitboxY, playerHitboxWidth, playerHitboxHeight);
-        
-        ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)'; ctx.lineWidth = 2;
-        thunderClouds.forEach(cloud => {
-            const cloudHitboxX = cloud.x + cloud.boundingBoxOffsetX, cloudHitboxY = cloud.y + cloud.boundingBoxOffsetY;
-            ctx.strokeRect(cloudHitboxX, cloudHitboxY, cloud.width, cloud.height);
-        });
+        if (devSettings.showHitboxes) {
+            ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'; ctx.lineWidth = 2;
+            const playerHitboxX = player.x + player.width * 0.15, playerHitboxY = player.y + player.height * 0.15;
+            const playerHitboxWidth = player.width * 0.7, playerHitboxHeight = player.height * 0.7;
+            ctx.strokeRect(playerHitboxX, playerHitboxY, playerHitboxWidth, playerHitboxHeight);
+            
+            ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)'; ctx.lineWidth = 2;
+            thunderClouds.forEach(cloud => {
+                const cloudHitboxX = cloud.x + cloud.boundingBoxOffsetX, cloudHitboxY = cloud.y + cloud.boundingBoxOffsetY;
+                ctx.strokeRect(cloudHitboxX, cloudHitboxY, cloud.width, cloud.height);
+            });
+        }
 
-        // <<< MODIFICATION START: Draw Bot Target and Path >>>
         if (isBotActive && botTarget) {
             ctx.save();
-            
             let targetX, targetY;
 
-            // Determine target coordinates based on its type
-            if (botTarget.isVirtual) { // A calculated point (e.g., evasion point)
+            if (botTarget.isVirtual) {
                 targetX = botTarget.x;
                 targetY = botTarget.y;
-            } else if (botTarget instanceof Ball) { // A ball object
+            } else if (botTarget instanceof Ball) {
                 targetX = botTarget.x;
                 targetY = botTarget.y;
-            } else if (botTarget instanceof Cloud) { // A cloud object (for Kamikaze mode)
+            } else if (botTarget instanceof Cloud) {
                 targetX = botTarget.x + botTarget.boundingBoxOffsetX + botTarget.width / 2;
                 targetY = botTarget.y + botTarget.boundingBoxOffsetY + botTarget.height / 2;
             }
 
             if (targetX !== undefined && targetY !== undefined) {
-                // Draw the planned path line from player to target
-                ctx.beginPath();
-                ctx.moveTo(player.x + player.width / 2, player.y + player.height / 2);
-                ctx.lineTo(targetX, targetY);
-                ctx.strokeStyle = 'cyan';
-                ctx.lineWidth = 2;
-                ctx.setLineDash([5, 5]); // Dashed line for a "planned" look
-                ctx.stroke();
-                ctx.setLineDash([]); // Reset line dash for other drawings
+                if (devSettings.showBotPath) {
+                    ctx.beginPath();
+                    ctx.moveTo(player.x + player.width / 2, player.y + player.height / 2);
+                    ctx.lineTo(targetX, targetY);
+                    ctx.strokeStyle = 'cyan';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([5, 5]);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
 
-                // Draw a marker on the target
-                // Yellow for virtual/calculated targets, Lime for physical objects
-                ctx.strokeStyle = botTarget.isVirtual ? 'yellow' : 'lime';
-                ctx.lineWidth = 3;
-                ctx.beginPath();
-                ctx.arc(targetX, targetY, 20, 0, Math.PI * 2); // Circle around target
-                ctx.stroke();
+                if (devSettings.showBotTarget) {
+                    ctx.strokeStyle = botTarget.isVirtual ? 'yellow' : 'lime';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(targetX, targetY, 20, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
             }
-
             ctx.restore();
         }
-        // <<< MODIFICATION END >>>
     }
 
     function animate() {
@@ -760,12 +851,12 @@ window.addEventListener('load', function() {
         
         player.update();
         
-        updateAndDrawObjects(); // Draw objects before player so player is on top
+        updateAndDrawObjects();
         player.draw();
         
         drawBotModeStatus();
         drawDamageMessage();
-        drawDevInfo(); // Draw dev info on top of everything
+        drawDevInfo();
         checkCollisions();
         updateGameStatus();
 
@@ -791,6 +882,11 @@ window.addEventListener('load', function() {
         
         volumeSlider.value = currentVolume;
         muteButton.textContent = isMuted ? "Unmute" : "Mute";
+
+        // Sync checkboxes with the initial settings
+        devToggleHitboxes.checked = devSettings.showHitboxes;
+        devToggleBotPath.checked = devSettings.showBotPath;
+        devToggleBotTarget.checked = devSettings.showBotTarget;
 
         showStartScreen();
     }

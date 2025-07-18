@@ -53,9 +53,7 @@
                 </ul>
                 <p>Your flight ends if you run out of <strong>Health</strong> or <strong>Fuel</strong>.</p>
                 
-                <!-- MODIFICATION START -->
                 <p>Press <strong>D</strong>-key to toggle developer mode.</p>
-                <!-- MODIFICATION END -->
 
                 <!-- Bot help section -->
                 <div class="controls-section">
@@ -68,6 +66,26 @@
                         <li><strong>4 Key:</strong> Activates "Kamikaze Mode" (recklessly seeks out threats).</li>
                     </ul>
                 </div>
+
+                <!-- MODIFICATION START: Developer Tools Section -->
+                <div id="dev-controls-section" class="controls-section" style="display: none;">
+                    <h3>Developer Tools</h3>
+                    <ul>
+                        <li>
+                            <input type="checkbox" id="dev-toggle-hitboxes">
+                            <label for="dev-toggle-hitboxes">Show Hitboxes</label>
+                        </li>
+                        <li>
+                            <input type="checkbox" id="dev-toggle-bot-path">
+                            <label for="dev-toggle-bot-path">Show Bot Path</label>
+                        </li>
+                        <li>
+                            <input type="checkbox" id="dev-toggle-bot-target">
+                            <label for="dev-toggle-bot-target">Show Bot Target</label>
+                        </li>
+                    </ul>
+                </div>
+                <!-- MODIFICATION END -->
 
                 <div id="audio-controls">
                     <label for="volume-slider">Volume:</label>
