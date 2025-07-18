@@ -41,17 +41,20 @@ window.addEventListener('load', function() {
     // --- GAME VARIABLES ---
     let score, health, fuel, gameSpeed, gameOver, frame, isNightMode;
     let gameIsActive = false;
+    let isPaused = false; 
     let animationFrameId;
     let gameOverReason = '';
     let damageMessage = { text: '', timer: 0 };
     
-    // Developer Mode State
+    // --- MODIFICATION START: Developer Mode State Enhancement ---
     let isDevMode = false; 
+    let isFirstDevModeToggle = true; // New flag to handle first-time setup
     let devSettings = {
         showHitboxes: false,
         showBotPath: false,
         showBotTarget: false
     };
+    // --- MODIFICATION END ---
 
     // --- AUTOBOT/IDLE MODE ---
     let idleTimer;
@@ -218,21 +221,30 @@ window.addEventListener('load', function() {
     function handleVisibilityChange() {
         if (!audioCtx) return;
         if (document.hidden) {
+            if (gameIsActive && !isPaused) {
+                isPaused = true;
+                if (animationFrameId) cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
             if (audioCtx.state === 'running') audioCtx.suspend();
         } else {
-            if (gameIsActive && audioCtx.state === 'suspended') audioCtx.resume();
+            if (gameIsActive && isPaused && helpScreen.style.display !== 'block') {
+                isPaused = false;
+                if (!animationFrameId) animate();
+            }
+            if (audioCtx.state === 'suspended') audioCtx.resume();
         }
     }
 
     // --- INPUT AND EVENT LISTENERS ---
     function setupEventListeners() {
         const startThrust = (e) => {
-            if (gameOver || !player || isBotActive) return;
+            if (gameOver || isPaused || !player || isBotActive) return;
             e.preventDefault();
             player.isThrusting = true;
         };
         const endThrust = (e) => {
-            if (gameOver || !player || isBotActive) return;
+            if (gameOver || isPaused || !player || isBotActive) return;
             e.preventDefault();
             player.isThrusting = false;
         };
@@ -248,6 +260,14 @@ window.addEventListener('load', function() {
         };
 
         window.addEventListener('keydown', (e) => {
+            if (e.code === 'KeyH') {
+                if (gameOverScreen.style.display === 'block') return;
+                toggleHelpScreen(helpScreen.style.display !== 'block');
+                return;
+            }
+
+            if (isPaused) return;
+
             if (gameIsActive) {
                 if (e.code === 'KeyB') {
                     isBotActive = !isBotActive;
@@ -263,25 +283,42 @@ window.addEventListener('load', function() {
                     console.log(`%cBot personality set to: ${activeBotMode}`, 'color: #00A0F0; font-weight: bold;');
                     return; 
                 }
+                // --- MODIFICATION START: New D-Key Logic ---
+                if (e.code === 'KeyD') {
+                    isDevMode = !isDevMode; // Toggle the master dev mode switch
+
+                    // If this is the very first time we've ever enabled dev mode in this session...
+                    if (isDevMode && isFirstDevModeToggle) {
+                        // Set the default settings
+                        devSettings.showHitboxes = true;
+                        devSettings.showBotTarget = true;
+                        
+                        // Now, prevent this block from ever running again
+                        isFirstDevModeToggle = false; 
+                    }
+                    
+                    // Sync the checkboxes with the current state of devSettings.
+                    // This ensures the UI reflects the programmatic changes or remembers manual ones.
+                    devToggleHitboxes.checked = devSettings.showHitboxes;
+                    devToggleBotTarget.checked = devSettings.showBotTarget;
+                    devToggleBotPath.checked = devSettings.showBotPath;
+
+                    // Also, control the visibility of the section in the help menu.
+                    devControlsSection.style.display = isDevMode ? 'block' : 'none';
+                    
+                    console.log('Dev Mode:', isDevMode ? 'ON' : 'OFF');
+                    return;
+                }
+                // --- MODIFICATION END ---
             }
 
             if (e.code === 'Space' || e.code === 'ArrowUp') startThrust(e);
-            
-            if (e.code === 'KeyH') {
-                const isHelpVisible = helpScreen.style.display === 'block';
-                toggleHelpScreen(!isHelpVisible);
-            }
-            
-            if (e.code === 'KeyD') {
-                isDevMode = !isDevMode;
-                devControlsSection.style.display = isDevMode ? 'block' : 'none';
-                console.log('Dev Mode:', isDevMode ? 'ON' : 'OFF');
-            }
             
             stopAutobotOnInteraction();
         });
 
         window.addEventListener('keyup', (e) => {
+            if (isPaused) return;
             if (e.code === 'Space' || e.code === 'ArrowUp') endThrust(e);
         });
 
@@ -317,14 +354,12 @@ window.addEventListener('load', function() {
             muteButton.textContent = isMuted ? "Unmute" : "Mute";
         });
 
-        // Add event listeners for dev checkboxes
         devToggleHitboxes.addEventListener('change', () => { devSettings.showHitboxes = devToggleHitboxes.checked; });
         devToggleBotPath.addEventListener('change', () => { devSettings.showBotPath = devToggleBotPath.checked; });
         devToggleBotTarget.addEventListener('change', () => { devSettings.showBotTarget = devToggleBotTarget.checked; });
     }
 
     // --- BOT AI ALGORITHMS ---
-
     function botMode_Collector() {
         botTarget = null;
         let target = null;
@@ -336,9 +371,7 @@ window.addEventListener('load', function() {
                 target = ball;
             }
         });
-
         botTarget = target;
-
         if (target) {
             let targetY = target.y;
             if (player.y > targetY + 5) player.isThrusting = true;
@@ -348,17 +381,6 @@ window.addEventListener('load', function() {
         }
     }
     
-    // =================================================================
-    // /// MODIFICATION START: New Smart Bot Logic & Helper Function ///
-    // =================================================================
-
-    /**
-     * Checks if the path to a target is obstructed by any threats.
-     * @param {object} target - The target object (e.g., a blue ball).
-     * @param {array} threats - An array of all current threats.
-     * @param {number} margin - Extra safety padding around threats.
-     * @returns {boolean} - True if the path is safe, false otherwise.
-     */
     function isPathToTargetSafe(target, threats, margin) {
         const pathTop = Math.min(player.y, target.y) - margin;
         const pathBottom = Math.max(player.y + player.height, target.y) + margin;
@@ -367,7 +389,6 @@ window.addEventListener('load', function() {
 
         for (const threat of threats) {
             let threatLeft, threatRight, threatTop, threatBottom;
-
             if (threat instanceof Ball) {
                 threatLeft = threat.x - threat.radius;
                 threatRight = threat.x + threat.radius;
@@ -379,29 +400,21 @@ window.addEventListener('load', function() {
                 threatTop = threat.y + threat.boundingBoxOffsetY;
                 threatBottom = threatTop + threat.height;
             }
-
-            // Simple AABB collision check between the path rectangle and threat hitbox
             if (pathLeft < threatRight && pathRight > threatLeft &&
                 pathTop < threatBottom && pathBottom > threatTop) {
-                return false; // Path is NOT safe
+                return false;
             }
         }
-        return true; // Path is safe
+        return true;
     }
 
-    /**
-     * Advanced "Smart" bot. Prioritizes survival, then seeks safe collectibles.
-     */
     function botMode_Smart() {
-        botTarget = null; // Reset target each frame
+        botTarget = null; 
         const allThreats = [...redBalls, ...thunderClouds];
-        const DANGER_ZONE_RADIUS = 225; // Critical distance to force evasion
-        const SAFE_PATH_MARGIN = player.height * 0.75; // Extra padding for path checking
-
-        // 1. SURVIVAL: Check for immediate threats in the danger zone.
+        const DANGER_ZONE_RADIUS = 225; 
+        const SAFE_PATH_MARGIN = player.height * 0.75; 
         let mostUrgentThreat = null;
         let minThreatDist = Infinity;
-
         allThreats.forEach(threat => {
             const dist = threat.x - (player.x + player.width);
             if (dist > -threat.width && dist < minThreatDist) {
@@ -409,12 +422,9 @@ window.addEventListener('load', function() {
                 mostUrgentThreat = threat;
             }
         });
-
         if (mostUrgentThreat && minThreatDist < DANGER_ZONE_RADIUS) {
-            // Evasion is the ONLY priority.
             let threatTop, threatBottom;
             const evadeMargin = player.height * 1.5;
-
             if (mostUrgentThreat instanceof Ball) {
                 threatTop = mostUrgentThreat.y - mostUrgentThreat.radius;
                 threatBottom = mostUrgentThreat.y + mostUrgentThreat.radius;
@@ -422,60 +432,43 @@ window.addEventListener('load', function() {
                 threatTop = mostUrgentThreat.y + mostUrgentThreat.boundingBoxOffsetY;
                 threatBottom = threatTop + mostUrgentThreat.height;
             }
-
             const evadeY = Math.abs(player.y - (threatTop - evadeMargin)) < Math.abs(player.y - (threatBottom + evadeMargin))
                 ? threatTop - evadeMargin
                 : threatBottom + evadeMargin;
-
             botTarget = { x: mostUrgentThreat.x, y: evadeY, isVirtual: true };
             player.isThrusting = player.y > evadeY;
-            return; // Exit function after deciding to evade.
+            return; 
         }
-
-        // 2. OPPORTUNITY: Find the best collectible to target.
         let bestCollectible = null;
         let minCollectibleDist = Infinity;
-
         blueBalls.forEach(ball => {
             const dist = ball.x - (player.x + player.width);
-            // Only consider balls in front of the player
             if (dist > 0 && dist < minCollectibleDist) {
                 minCollectibleDist = dist;
                 bestCollectible = ball;
             }
         });
-
-        // 3. VALIDATION: If a collectible was found, check if it's safe to get.
         if (bestCollectible) {
             if (isPathToTargetSafe(bestCollectible, allThreats, SAFE_PATH_MARGIN)) {
-                // Path is clear! Go for the ball.
                 botTarget = bestCollectible;
                 player.isThrusting = player.y > bestCollectible.y;
                 return;
             }
         }
-        
-        // 4. DEFAULT BEHAVIOR: No immediate threats and no safe collectibles.
-        // Cautiously move towards the center of the screen to stay safe.
         const middleY = canvas.height / 2;
         botTarget = { x: player.x + 200, y: middleY, isVirtual: true };
         if (Math.abs(player.y - middleY) < 20) {
-            player.isThrusting = false; // We are centered, no need to move.
+            player.isThrusting = false; 
         } else {
             player.isThrusting = player.y > middleY;
         }
     }
     
-    // =================================================================
-    // /// MODIFICATION END: New Smart Bot Logic & Helper Function ///
-    // =================================================================
-
     function botMode_Avoider() {
         botTarget = null;
         const threats = [...redBalls, ...thunderClouds];
         let closestThreat = null;
         let minThreatDist = 450;
-
         threats.forEach(threat => {
             const dist = threat.x - (player.x + player.width);
             if (dist > -threat.width && dist < minThreatDist) {
@@ -483,11 +476,9 @@ window.addEventListener('load', function() {
                 minThreatDist = dist;
             }
         });
-
         if (closestThreat) {
             let threatTop, threatBottom;
             const safeMargin = player.height * 1.8;
-
             if (closestThreat instanceof Ball) {
                 threatTop = closestThreat.y - closestThreat.radius;
                 threatBottom = closestThreat.y + closestThreat.radius;
@@ -495,27 +486,14 @@ window.addEventListener('load', function() {
                 threatTop = closestThreat.y + closestThreat.boundingBoxOffsetY;
                 threatBottom = threatTop + closestThreat.height;
             }
-            
             const targetY = Math.abs(player.y - (threatTop - safeMargin)) < Math.abs(player.y - (threatBottom + safeMargin))
                     ? threatTop - safeMargin
                     : threatBottom + safeMargin;
-            
-            botTarget = {
-                x: closestThreat.x,
-                y: targetY,
-                isVirtual: true,
-            };
-
+            botTarget = { x: closestThreat.x, y: targetY, isVirtual: true, };
             player.isThrusting = player.y > targetY;
         } else {
             const middleY = canvas.height / 2;
-            
-            botTarget = {
-                x: player.x + 200,
-                y: middleY,
-                isVirtual: true,
-            };
-
+            botTarget = { x: player.x + 200, y: middleY, isVirtual: true, };
             if (player.y > middleY + 10) player.isThrusting = true;
             else if (player.y < middleY - 10) player.isThrusting = false;
             else player.isThrusting = false;
@@ -527,7 +505,6 @@ window.addEventListener('load', function() {
         let target = null;
         let closestDist = Infinity;
         const allThreats = [...redBalls, ...thunderClouds];
-
         allThreats.forEach(threat => {
              const dist = (threat.x) - (player.x + player.width);
              if (dist > -50 && dist < closestDist) {
@@ -535,9 +512,7 @@ window.addEventListener('load', function() {
                  target = threat;
              }
         });
-        
         botTarget = target;
-
         if (target) {
             let targetY;
             if (target instanceof Ball) {
@@ -545,7 +520,6 @@ window.addEventListener('load', function() {
             } else {
                 targetY = target.y + target.boundingBoxOffsetY + (target.height / 2);
             }
-            
             if (player.y > targetY + 5) player.isThrusting = true;
             else if (player.y < targetY - 5) player.isThrusting = false;
             else player.isThrusting = false;
@@ -558,36 +532,49 @@ window.addEventListener('load', function() {
     // --- GAME STATE & LOOP ---
     function showStartScreen() {
         gameIsActive = false;
+        isPaused = false;
         isBotActive = false;
         startScreen.style.display = 'flex';
         gameOverScreen.style.display = 'none';
         helpScreen.style.display = 'none';
         botModeDisplay.style.display = 'none';
         document.body.className = '';
-        
         clearTimeout(idleTimer);
         clearInterval(countdownInterval);
         autobotCountdownDisplay.style.display = 'none';
-        
         if (audioCtx) audioCtx.suspend();
-        
         idleTimer = setTimeout(() => startAutobotCountdown(), 7000);
     }
     
     function toggleHelpScreen(show) {
-        helpScreen.style.display = show ? 'block' : 'none';
-        
-        if (show) {
-            devControlsSection.style.display = isDevMode ? 'block' : 'none';
-        }
-
-        if (!gameIsActive) {
+        if (gameIsActive) {
+            isPaused = show;
+            if (isPaused) {
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null;
+                }
+                if (audioCtx) audioCtx.suspend();
+                helpScreen.style.display = 'block';
+                devControlsSection.style.display = isDevMode ? 'block' : 'none';
+            } else {
+                helpScreen.style.display = 'none';
+                if (audioCtx && audioCtx.state === 'suspended' && !document.hidden) {
+                    audioCtx.resume();
+                }
+                if (!animationFrameId) { 
+                    animate(); 
+                }
+            }
+        } else {
+            helpScreen.style.display = show ? 'block' : 'none';
+            if (show) {
+                devControlsSection.style.display = isDevMode ? 'block' : 'none';
+            }
             clearTimeout(idleTimer);
             clearInterval(countdownInterval);
             autobotCountdownDisplay.style.display = 'none';
-
             startScreen.style.display = show ? 'none' : 'flex';
-            
             if (!show) { 
                  idleTimer = setTimeout(() => startAutobotCountdown(), 7000);
             }
@@ -598,7 +585,6 @@ window.addEventListener('load', function() {
         autobotCountdown = 7;
         autobotCountdownDisplay.textContent = `Autobot demo starting in ${autobotCountdown}...`;
         autobotCountdownDisplay.style.display = 'block';
-        
         countdownInterval = setInterval(() => {
             autobotCountdown--;
             if (autobotCountdown <= 0) {
@@ -620,30 +606,25 @@ window.addEventListener('load', function() {
     
     function startGame(nightMode, startWithBot = false) {
         gameIsActive = true;
+        isPaused = false; 
         gameOverReason = '';
         damageMessage = { text: '', timer: 0 };
-        
         clearTimeout(idleTimer);
         clearInterval(countdownInterval);
         autobotCountdownDisplay.style.display = 'none';
-
         setupAudio();
         if (audioCtx && audioCtx.state === 'suspended' && !document.hidden) {
             audioCtx.resume();
         }
-
         score = 0; health = 100; fuel = 100;
         gameSpeed = 3; gameOver = false; frame = 0;
         isNightMode = nightMode;
-        
         isBotActive = startWithBot;
         activeBotMode = 2;
         botTarget = null;
-
         player = Object.create(playerProto);
         player.y = 300; player.velocityY = 0;
         blueBalls = []; redBalls = []; clouds = []; thunderClouds = [];
-        
         document.body.className = isNightMode ? 'night-mode' : '';
         startScreen.style.display = 'none';
         gameOverScreen.style.display = 'none';
@@ -659,13 +640,11 @@ window.addEventListener('load', function() {
         gameIsActive = false;
         isBotActive = false;
         botTarget = null;
-        
+        toggleEngineSound(false);
         if (audioCtx) audioCtx.suspend();
-        
         gameOverReasonElement.textContent = gameOverReason;
         finalScoreElement.textContent = score;
         gameOverScreen.style.display = 'block';
-        
         clearTimeout(idleTimer);
         clearInterval(countdownInterval);
     }
@@ -698,21 +677,17 @@ window.addEventListener('load', function() {
                 if (!isBotActive) damageSound();
             }
         });
-        
         thunderClouds.forEach((cloud) => {
             const playerHitboxX = player.x + player.width * 0.15, playerHitboxY = player.y + player.height * 0.15;
             const playerHitboxWidth = player.width * 0.7, playerHitboxHeight = player.height * 0.7;
             const cloudHitboxX = cloud.x + cloud.boundingBoxOffsetX, cloudHitboxY = cloud.y + cloud.boundingBoxOffsetY;
-
             if (playerHitboxX < cloudHitboxX + cloud.width && playerHitboxX + playerHitboxWidth > cloudHitboxX &&
                 playerHitboxY < cloudHitboxY + cloud.height && playerHitboxY + playerHitboxHeight > cloudHitboxY) {
-                
                 health -= 0.5;
                 if (damageMessage.timer <= 0) damageMessage = { text: 'In a Thunder Cloud!', timer: 120 };
                 if (frame % 30 === 0 && !isBotActive) damageSound();
             }
         });
-        
         blueBalls.forEach((ball, index) => {
             const dist = Math.hypot(player.x + player.width / 2 - ball.x, player.y + player.height / 2 - ball.y);
             if (dist < ball.radius + player.height / 2) {
@@ -728,7 +703,6 @@ window.addEventListener('load', function() {
         scoreElement.textContent = `Score: ${score}`;
         healthBar.style.width = `${Math.max(0, health)}%`;
         fuelBar.style.width = `${Math.max(0, fuel)}%`;
-        
         if (health < 30) healthBar.style.backgroundColor = '#e74c3c';
         else if (health < 60) healthBar.style.backgroundColor = '#f1c40f';
         else healthBar.style.backgroundColor = '#4CAF50';
@@ -736,7 +710,6 @@ window.addEventListener('load', function() {
     
     function updateGameStatus() {
         fuel -= player.isThrusting ? 0.12 : 0.04;
-        
         if (health <= 0) {
             health = 0;
             gameOverReason = "Ran out of health!";
@@ -775,9 +748,12 @@ window.addEventListener('load', function() {
         }
     }
 
+    // --- MODIFICATION START: Updated drawDevInfo function ---
     function drawDevInfo() {
-        if (!player) return;
+        // Master switch: if dev mode is off, do nothing at all.
+        if (!isDevMode || !player) return;
 
+        // The rest of the logic now only runs if the master switch is on.
         if (devSettings.showHitboxes) {
             ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'; ctx.lineWidth = 2;
             const playerHitboxX = player.x + player.width * 0.15, playerHitboxY = player.y + player.height * 0.15;
@@ -829,6 +805,7 @@ window.addEventListener('load', function() {
             ctx.restore();
         }
     }
+    // --- MODIFICATION END ---
 
     function animate() {
         if (gameOver) {
@@ -872,7 +849,12 @@ window.addEventListener('load', function() {
         helpBtn.addEventListener('click', () => toggleHelpScreen(true));
         closeHelpBtn.addEventListener('click', () => toggleHelpScreen(false));
         
+        bottomHelpHint.addEventListener('mousedown', (event) => {
+            event.stopPropagation();
+        });
+        
         bottomHelpHint.addEventListener('click', () => {
+            if (gameOverScreen.style.display === 'block') return;
             const isHelpVisible = helpScreen.style.display === 'block';
             toggleHelpScreen(!isHelpVisible);
         });
@@ -883,7 +865,6 @@ window.addEventListener('load', function() {
         volumeSlider.value = currentVolume;
         muteButton.textContent = isMuted ? "Unmute" : "Mute";
 
-        // Sync checkboxes with the initial settings
         devToggleHitboxes.checked = devSettings.showHitboxes;
         devToggleBotPath.checked = devSettings.showBotPath;
         devToggleBotTarget.checked = devSettings.showBotTarget;
