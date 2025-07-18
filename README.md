@@ -3,7 +3,7 @@
 
 # Side-Scrolling Flyer
 
-![screenshot](docs/screenshot.png)
+![screenshot](sceenshots/game_1.png)
 
 **Side-Scrolling Flyer** is a web-based, Flappy Bird–inspired game with more action, clever bots, and developer tools. Dodge obstacles, collect blue balls for fuel and score, and see how long you can survive—*or let the built-in bot play for you!*
 
