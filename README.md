@@ -94,7 +94,7 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 ## Credits
 
-- Game design & code: [Your Name Here]
+- Game design & code: AI/pemmyz
 - Powered by HTML5 Canvas and vanilla JavaScript
 
 ---
@@ -103,7 +103,7 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 - Supports desktop and touch devices
 - All assets are procedurally generated (no external images required)
-- For bugs and feature requests, [open an issue](https://github.com/yourusername/side-scrolling-flyer/issues)
+- For bugs and feature requests, [open an issue](https://github.com/pemmyz/js_hugoflights/issues)
 
 ---
 
