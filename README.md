@@ -1,7 +1,7 @@
 # js_hugoflights
 
 
-# Side-Scrolling Flyer
+# 🛩️ Side-Scrolling Flyer
 
 ![screenshot](screenshots/game_1.png)
 
