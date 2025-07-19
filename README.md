@@ -3,6 +3,8 @@
 
 # 🛩️ Side-Scrolling Flyer
 
+## Play it now: https://pemmyz.github.io/js_hugoflights/
+
 ![screenshot](screenshots/game_1.png)
 
 **Side-Scrolling Flyer** is a web-based, Flappy Bird–inspired and Hugo Flying Level -game with more action, clever bots, and developer tools. Dodge obstacles, collect blue balls for fuel and score, and see how long you can survive—*or let the built-in bot play for you!*
