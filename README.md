@@ -23,14 +23,7 @@
 
 ---
 
-## Screenshots
 
-<p align="center">
-  <img src="docs/screenshot_day.png" width="400">
-  <img src="docs/screenshot_night.png" width="400">
-</p>
-
----
 
 ## How to Play
 
