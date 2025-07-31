@@ -25,9 +25,7 @@ window.addEventListener('load', function() {
     const volumeSlider = document.getElementById('volume-slider');
     const muteButton = document.getElementById('mute-button');
     const bottomHelpHint = document.getElementById('bottom-help-hint');
-    // MODIFICATION START: Add difficulty select element
     const difficultySelect = document.getElementById('difficulty-select');
-    // MODIFICATION END
 
     // Developer Tools Elements
     const devControlsSection = document.getElementById('dev-controls-section');
@@ -48,9 +46,7 @@ window.addEventListener('load', function() {
     let animationFrameId;
     let gameOverReason = '';
     let damageMessage = { text: '', timer: 0 };
-    // MODIFICATION START: Add difficulty variable
     let difficulty = 'hard'; // Can be 'easy', 'medium', or 'hard'
-    // MODIFICATION END
     
     // --- Developer Mode State Enhancement ---
     let isDevMode = false; 
@@ -346,11 +342,9 @@ window.addEventListener('load', function() {
             muteButton.textContent = isMuted ? "Unmute" : "Mute";
         });
         
-        // MODIFICATION START: Add listener for difficulty dropdown
         difficultySelect.addEventListener('change', (e) => {
             difficulty = e.target.value;
         });
-        // MODIFICATION END
 
         devToggleHitboxes.addEventListener('change', () => { devSettings.showHitboxes = devToggleHitboxes.checked; });
         devToggleBotPath.addEventListener('change', () => { devSettings.showBotPath = devToggleBotPath.checked; });
@@ -665,14 +659,16 @@ window.addEventListener('load', function() {
         redBalls = redBalls.filter(b => b.x + b.radius > 0);
     }
     
-    // MODIFICATION START: New helper functions for difficulty and collision
+    // --- MODIFICATION START: Updated Hitbox Logic ---
     function getPlayerHitbox() {
         // This function calculates and returns the player's current hitbox
         // based on the selected difficulty level.
         switch (difficulty) {
             case 'easy':
-                // Largest hitbox: encompasses the entire sprite including wings and tail.
-                return { x: player.x - 15, y: player.y - 15, width: player.width + 15, height: player.height + 30 };
+                // Largest hitbox: covers the entire sprite including wings, tail, and propeller.
+                // Made slightly larger for an easier experience.
+                const easyWidth = player.width + 40; // Base(80) + tail(15) + prop(20) + buffer(5)
+                return { x: player.x - 15, y: player.y - 15, width: easyWidth, height: player.height + 30 };
             case 'medium':
                 // Medium hitbox: the main fuselage of the plane.
                 return { x: player.x, y: player.y, width: player.width, height: player.height };
@@ -682,6 +678,7 @@ window.addEventListener('load', function() {
                 return { x: player.x + player.width * 0.15, y: player.y + player.height * 0.15, width: player.width * 0.7, height: player.height * 0.7 };
         }
     }
+    // --- MODIFICATION END ---
 
     function checkRectCircleCollision(rect, circle) {
         // Finds the closest point on the rectangle to the circle's center.
@@ -734,7 +731,6 @@ window.addEventListener('load', function() {
             }
         });
     }
-    // MODIFICATION END
 
     function updateUI() {
         scoreElement.textContent = `Score: ${score}`;
@@ -788,7 +784,6 @@ window.addEventListener('load', function() {
     function drawDevInfo() {
         if (!isDevMode || !player) return;
 
-        // MODIFICATION START: Use getPlayerHitbox to draw the correct hitbox
         if (devSettings.showHitboxes) {
             // Draw Player Hitbox based on current difficulty
             ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'; ctx.lineWidth = 2;
@@ -803,7 +798,6 @@ window.addEventListener('load', function() {
                 ctx.strokeRect(cloudHitboxX, cloudHitboxY, cloud.width, cloud.height);
             });
         }
-        // MODIFICATION END
 
         if (isBotActive && botTarget) {
             ctx.save();
