@@ -25,6 +25,9 @@ window.addEventListener('load', function() {
     const volumeSlider = document.getElementById('volume-slider');
     const muteButton = document.getElementById('mute-button');
     const bottomHelpHint = document.getElementById('bottom-help-hint');
+    // MODIFICATION START: Add difficulty select element
+    const difficultySelect = document.getElementById('difficulty-select');
+    // MODIFICATION END
 
     // Developer Tools Elements
     const devControlsSection = document.getElementById('dev-controls-section');
@@ -45,17 +48,19 @@ window.addEventListener('load', function() {
     let animationFrameId;
     let gameOverReason = '';
     let damageMessage = { text: '', timer: 0 };
+    // MODIFICATION START: Add difficulty variable
+    let difficulty = 'hard'; // Can be 'easy', 'medium', or 'hard'
+    // MODIFICATION END
     
-    // --- MODIFICATION START: Developer Mode State Enhancement ---
+    // --- Developer Mode State Enhancement ---
     let isDevMode = false; 
-    let isFirstDevModeToggle = true; // New flag to handle first-time setup
+    let isFirstDevModeToggle = true; 
     let devSettings = {
         showHitboxes: false,
         showBotPath: false,
         showBotTarget: false
     };
-    // --- MODIFICATION END ---
-
+    
     // --- AUTOBOT/IDLE MODE ---
     let idleTimer;
     let autobotCountdown = 7; 
@@ -283,33 +288,20 @@ window.addEventListener('load', function() {
                     console.log(`%cBot personality set to: ${activeBotMode}`, 'color: #00A0F0; font-weight: bold;');
                     return; 
                 }
-                // --- MODIFICATION START: New D-Key Logic ---
                 if (e.code === 'KeyD') {
-                    isDevMode = !isDevMode; // Toggle the master dev mode switch
-
-                    // If this is the very first time we've ever enabled dev mode in this session...
+                    isDevMode = !isDevMode; 
                     if (isDevMode && isFirstDevModeToggle) {
-                        // Set the default settings
                         devSettings.showHitboxes = true;
                         devSettings.showBotTarget = true;
-                        
-                        // Now, prevent this block from ever running again
                         isFirstDevModeToggle = false; 
                     }
-                    
-                    // Sync the checkboxes with the current state of devSettings.
-                    // This ensures the UI reflects the programmatic changes or remembers manual ones.
                     devToggleHitboxes.checked = devSettings.showHitboxes;
                     devToggleBotTarget.checked = devSettings.showBotTarget;
                     devToggleBotPath.checked = devSettings.showBotPath;
-
-                    // Also, control the visibility of the section in the help menu.
                     devControlsSection.style.display = isDevMode ? 'block' : 'none';
-                    
                     console.log('Dev Mode:', isDevMode ? 'ON' : 'OFF');
                     return;
                 }
-                // --- MODIFICATION END ---
             }
 
             if (e.code === 'Space' || e.code === 'ArrowUp') startThrust(e);
@@ -353,6 +345,12 @@ window.addEventListener('load', function() {
             }
             muteButton.textContent = isMuted ? "Unmute" : "Mute";
         });
+        
+        // MODIFICATION START: Add listener for difficulty dropdown
+        difficultySelect.addEventListener('change', (e) => {
+            difficulty = e.target.value;
+        });
+        // MODIFICATION END
 
         devToggleHitboxes.addEventListener('change', () => { devSettings.showHitboxes = devToggleHitboxes.checked; });
         devToggleBotPath.addEventListener('change', () => { devSettings.showBotPath = devToggleBotPath.checked; });
@@ -667,30 +665,68 @@ window.addEventListener('load', function() {
         redBalls = redBalls.filter(b => b.x + b.radius > 0);
     }
     
+    // MODIFICATION START: New helper functions for difficulty and collision
+    function getPlayerHitbox() {
+        // This function calculates and returns the player's current hitbox
+        // based on the selected difficulty level.
+        switch (difficulty) {
+            case 'easy':
+                // Largest hitbox: encompasses the entire sprite including wings and tail.
+                return { x: player.x - 15, y: player.y - 15, width: player.width + 15, height: player.height + 30 };
+            case 'medium':
+                // Medium hitbox: the main fuselage of the plane.
+                return { x: player.x, y: player.y, width: player.width, height: player.height };
+            case 'hard':
+            default:
+                // Hardest hitbox: a smaller, centered rectangle inside the fuselage.
+                return { x: player.x + player.width * 0.15, y: player.y + player.height * 0.15, width: player.width * 0.7, height: player.height * 0.7 };
+        }
+    }
+
+    function checkRectCircleCollision(rect, circle) {
+        // Finds the closest point on the rectangle to the circle's center.
+        const closestX = Math.max(rect.x, Math.min(circle.x, rect.x + rect.width));
+        const closestY = Math.max(rect.y, Math.min(circle.y, rect.y + rect.height));
+
+        // Calculates the distance between the closest point and the circle's center.
+        const distanceX = circle.x - closestX;
+        const distanceY = circle.y - closestY;
+
+        // If the squared distance is less than the circle's squared radius, a collision occurred.
+        const distanceSquared = (distanceX * distanceX) + (distanceY * distanceY);
+        return distanceSquared < (circle.radius * circle.radius);
+    }
+    
     function checkCollisions() {
+        const playerHitbox = getPlayerHitbox();
+
         redBalls.forEach((ball, index) => {
-            const dist = Math.hypot(player.x + player.width / 2 - ball.x, player.y + player.height / 2 - ball.y);
-            if (dist < ball.radius + player.height / 2) {
+            if (checkRectCircleCollision(playerHitbox, ball)) {
                 redBalls.splice(index, 1);
                 health -= 20;
                 damageMessage = { text: 'Hit a Red Ball!', timer: 120 };
                 if (!isBotActive) damageSound();
             }
         });
+
         thunderClouds.forEach((cloud) => {
-            const playerHitboxX = player.x + player.width * 0.15, playerHitboxY = player.y + player.height * 0.15;
-            const playerHitboxWidth = player.width * 0.7, playerHitboxHeight = player.height * 0.7;
-            const cloudHitboxX = cloud.x + cloud.boundingBoxOffsetX, cloudHitboxY = cloud.y + cloud.boundingBoxOffsetY;
-            if (playerHitboxX < cloudHitboxX + cloud.width && playerHitboxX + playerHitboxWidth > cloudHitboxX &&
-                playerHitboxY < cloudHitboxY + cloud.height && playerHitboxY + playerHitboxHeight > cloudHitboxY) {
+            const cloudHitboxX = cloud.x + cloud.boundingBoxOffsetX;
+            const cloudHitboxY = cloud.y + cloud.boundingBoxOffsetY;
+
+            // AABB (Axis-Aligned Bounding Box) collision check for two rectangles.
+            if (playerHitbox.x < cloudHitboxX + cloud.width &&
+                playerHitbox.x + playerHitbox.width > cloudHitboxX &&
+                playerHitbox.y < cloudHitboxY + cloud.height &&
+                playerHitbox.y + playerHitbox.height > cloudHitboxY) {
+                
                 health -= 0.5;
                 if (damageMessage.timer <= 0) damageMessage = { text: 'In a Thunder Cloud!', timer: 120 };
                 if (frame % 30 === 0 && !isBotActive) damageSound();
             }
         });
+
         blueBalls.forEach((ball, index) => {
-            const dist = Math.hypot(player.x + player.width / 2 - ball.x, player.y + player.height / 2 - ball.y);
-            if (dist < ball.radius + player.height / 2) {
+            if (checkRectCircleCollision(playerHitbox, ball)) {
                 blueBalls.splice(index, 1);
                 score += 10;
                 fuel = Math.min(100, fuel + 5);
@@ -698,6 +734,7 @@ window.addEventListener('load', function() {
             }
         });
     }
+    // MODIFICATION END
 
     function updateUI() {
         scoreElement.textContent = `Score: ${score}`;
@@ -748,24 +785,25 @@ window.addEventListener('load', function() {
         }
     }
 
-    // --- MODIFICATION START: Updated drawDevInfo function ---
     function drawDevInfo() {
-        // Master switch: if dev mode is off, do nothing at all.
         if (!isDevMode || !player) return;
 
-        // The rest of the logic now only runs if the master switch is on.
+        // MODIFICATION START: Use getPlayerHitbox to draw the correct hitbox
         if (devSettings.showHitboxes) {
+            // Draw Player Hitbox based on current difficulty
             ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'; ctx.lineWidth = 2;
-            const playerHitboxX = player.x + player.width * 0.15, playerHitboxY = player.y + player.height * 0.15;
-            const playerHitboxWidth = player.width * 0.7, playerHitboxHeight = player.height * 0.7;
-            ctx.strokeRect(playerHitboxX, playerHitboxY, playerHitboxWidth, playerHitboxHeight);
+            const playerHitbox = getPlayerHitbox();
+            ctx.strokeRect(playerHitbox.x, playerHitbox.y, playerHitbox.width, playerHitbox.height);
             
+            // Draw Thunder Cloud Hitboxes
             ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)'; ctx.lineWidth = 2;
             thunderClouds.forEach(cloud => {
-                const cloudHitboxX = cloud.x + cloud.boundingBoxOffsetX, cloudHitboxY = cloud.y + cloud.boundingBoxOffsetY;
+                const cloudHitboxX = cloud.x + cloud.boundingBoxOffsetX;
+                const cloudHitboxY = cloud.y + cloud.boundingBoxOffsetY;
                 ctx.strokeRect(cloudHitboxX, cloudHitboxY, cloud.width, cloud.height);
             });
         }
+        // MODIFICATION END
 
         if (isBotActive && botTarget) {
             ctx.save();
@@ -805,7 +843,6 @@ window.addEventListener('load', function() {
             ctx.restore();
         }
     }
-    // --- MODIFICATION END ---
 
     function animate() {
         if (gameOver) {
@@ -864,6 +901,7 @@ window.addEventListener('load', function() {
         
         volumeSlider.value = currentVolume;
         muteButton.textContent = isMuted ? "Unmute" : "Mute";
+        difficultySelect.value = difficulty; // Ensure dropdown reflects the default
 
         devToggleHitboxes.checked = devSettings.showHitboxes;
         devToggleBotPath.checked = devSettings.showBotPath;

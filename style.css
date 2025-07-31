@@ -105,11 +105,8 @@ canvas {
     border: 2px solid #333;
     box-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
     min-width: 400px;
-
-    /* --- FIX STARTS HERE --- */
-    max-height: 90%;      /* Prevent overlay from being taller than its container */
-    overflow-y: auto;     /* Add a scrollbar if content overflows vertically */
-    /* --- FIX ENDS HERE --- */
+    max-height: 90%;
+    overflow-y: auto;
 }
 
 #start-screen {
@@ -122,7 +119,6 @@ canvas {
     align-items: center;
     color: white;
     text-align: center;
-    /* Remove the fix from the start screen as it should always be fullscreen */
     max-height: none;
     overflow-y: hidden;
 }
@@ -171,6 +167,17 @@ button {
 }
 button:hover { transform: scale(1.05); }
 button:active { transform: scale(1.0); }
+
+/* MODIFICATION START: Style for select dropdown */
+select {
+    padding: 8px 12px;
+    font-size: 16px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    background-color: white;
+    cursor: pointer;
+}
+/* MODIFICATION END */
 
 #start-day-button { background-color: #3498db; color: white; }
 #start-night-button { background-color: #2c3e50; color: white; }
@@ -236,4 +243,9 @@ button:active { transform: scale(1.0); }
 
 #help-screen .controls-section li {
     margin-bottom: 5px;
+}
+
+#help-screen .controls-section label {
+    font-weight: bold;
+    margin-right: 8px;
 }
