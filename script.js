@@ -659,22 +659,29 @@ window.addEventListener('load', function() {
         redBalls = redBalls.filter(b => b.x + b.radius > 0);
     }
     
-    // --- MODIFICATION START: Updated Hitbox Logic ---
-    function getPlayerHitbox() {
-        // This function calculates and returns the player's current hitbox
-        // based on the selected difficulty level.
+    // --- MODIFICATION START: New Hitbox Logic ---
+    function getPlayerDamageHitbox() {
+        // Returns the hitbox used for colliding with threats (red balls, clouds).
         switch (difficulty) {
-            case 'easy':
-                // Largest hitbox: covers the entire sprite including wings, tail, and propeller.
-                // Made slightly larger for an easier experience.
-                const easyWidth = player.width + 40; // Base(80) + tail(15) + prop(20) + buffer(5)
-                return { x: player.x - 15, y: player.y - 15, width: easyWidth, height: player.height + 30 };
-            case 'medium':
-                // Medium hitbox: the main fuselage of the plane.
+            case 'easy': // Smallest hitbox for damage (harder to get hit)
+                return { x: player.x + player.width * 0.15, y: player.y + player.height * 0.15, width: player.width * 0.7, height: player.height * 0.7 };
+            case 'medium': // Medium hitbox for damage
                 return { x: player.x, y: player.y, width: player.width, height: player.height };
-            case 'hard':
+            case 'hard': // Largest hitbox for damage (easier to get hit)
             default:
-                // Hardest hitbox: a smaller, centered rectangle inside the fuselage.
+                return { x: player.x - 15, y: player.y - 15, width: player.width + 40, height: player.height + 30 };
+        }
+    }
+
+    function getPlayerCollectionHitbox() {
+        // Returns the hitbox used for collecting items (blue balls).
+        switch (difficulty) {
+            case 'easy': // Largest hitbox for collection (easier to collect)
+                return { x: player.x - 15, y: player.y - 15, width: player.width + 40, height: player.height + 30 };
+            case 'medium': // Medium hitbox for collection
+                return { x: player.x, y: player.y, width: player.width, height: player.height };
+            case 'hard': // Smallest hitbox for collection (harder to collect)
+            default:
                 return { x: player.x + player.width * 0.15, y: player.y + player.height * 0.15, width: player.width * 0.7, height: player.height * 0.7 };
         }
     }
@@ -695,10 +702,13 @@ window.addEventListener('load', function() {
     }
     
     function checkCollisions() {
-        const playerHitbox = getPlayerHitbox();
+        // Get the separate hitboxes for damage and collection based on difficulty
+        const playerDamageHitbox = getPlayerDamageHitbox();
+        const playerCollectionHitbox = getPlayerCollectionHitbox();
 
+        // Check for collisions with threats using the damage hitbox
         redBalls.forEach((ball, index) => {
-            if (checkRectCircleCollision(playerHitbox, ball)) {
+            if (checkRectCircleCollision(playerDamageHitbox, ball)) {
                 redBalls.splice(index, 1);
                 health -= 20;
                 damageMessage = { text: 'Hit a Red Ball!', timer: 120 };
@@ -710,11 +720,11 @@ window.addEventListener('load', function() {
             const cloudHitboxX = cloud.x + cloud.boundingBoxOffsetX;
             const cloudHitboxY = cloud.y + cloud.boundingBoxOffsetY;
 
-            // AABB (Axis-Aligned Bounding Box) collision check for two rectangles.
-            if (playerHitbox.x < cloudHitboxX + cloud.width &&
-                playerHitbox.x + playerHitbox.width > cloudHitboxX &&
-                playerHitbox.y < cloudHitboxY + cloud.height &&
-                playerHitbox.y + playerHitbox.height > cloudHitboxY) {
+            // AABB collision check using the damage hitbox
+            if (playerDamageHitbox.x < cloudHitboxX + cloud.width &&
+                playerDamageHitbox.x + playerDamageHitbox.width > cloudHitboxX &&
+                playerDamageHitbox.y < cloudHitboxY + cloud.height &&
+                playerDamageHitbox.y + playerDamageHitbox.height > cloudHitboxY) {
                 
                 health -= 0.5;
                 if (damageMessage.timer <= 0) damageMessage = { text: 'In a Thunder Cloud!', timer: 120 };
@@ -722,8 +732,9 @@ window.addEventListener('load', function() {
             }
         });
 
+        // Check for collisions with collectibles using the collection hitbox
         blueBalls.forEach((ball, index) => {
-            if (checkRectCircleCollision(playerHitbox, ball)) {
+            if (checkRectCircleCollision(playerCollectionHitbox, ball)) {
                 blueBalls.splice(index, 1);
                 score += 10;
                 fuel = Math.min(100, fuel + 5);
@@ -785,10 +796,16 @@ window.addEventListener('load', function() {
         if (!isDevMode || !player) return;
 
         if (devSettings.showHitboxes) {
-            // Draw Player Hitbox based on current difficulty
-            ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'; ctx.lineWidth = 2;
-            const playerHitbox = getPlayerHitbox();
-            ctx.strokeRect(playerHitbox.x, playerHitbox.y, playerHitbox.width, playerHitbox.height);
+            // Draw Player Hitboxes with different colors
+            const playerDamageHitbox = getPlayerDamageHitbox();
+            ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'; // Green for damage
+            ctx.lineWidth = 2;
+            ctx.strokeRect(playerDamageHitbox.x, playerDamageHitbox.y, playerDamageHitbox.width, playerDamageHitbox.height);
+
+            const playerCollectionHitbox = getPlayerCollectionHitbox();
+            ctx.strokeStyle = 'rgba(0, 0, 255, 0.8)'; // Blue for collection
+            ctx.lineWidth = 2;
+            ctx.strokeRect(playerCollectionHitbox.x, playerCollectionHitbox.y, playerCollectionHitbox.width, playerCollectionHitbox.height);
             
             // Draw Thunder Cloud Hitboxes
             ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)'; ctx.lineWidth = 2;
