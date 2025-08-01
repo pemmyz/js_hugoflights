@@ -46,7 +46,7 @@ window.addEventListener('load', function() {
     let animationFrameId;
     let gameOverReason = '';
     let damageMessage = { text: '', timer: 0 };
-    let difficulty = 'hard'; // Can be 'easy', 'medium', or 'hard'
+    let difficulty = 'hard'; // Can be 'easy', 'medium', 'hard'
     
     // --- Developer Mode State Enhancement ---
     let isDevMode = false; 
@@ -58,7 +58,6 @@ window.addEventListener('load', function() {
     };
     
     // --- AUTOBOT/IDLE MODE ---
-    let idleTimer;
     let autobotCountdown = 7; 
     let countdownInterval;
     
@@ -254,7 +253,6 @@ window.addEventListener('load', function() {
             if (isBotActive) { 
                 stopAutobotAndShowMenu();
             } else { 
-                clearTimeout(idleTimer);
                 clearInterval(countdownInterval);
                 autobotCountdownDisplay.style.display = 'none';
             }
@@ -530,12 +528,14 @@ window.addEventListener('load', function() {
         gameOverScreen.style.display = 'none';
         helpScreen.style.display = 'none';
         botModeDisplay.style.display = 'none';
-        document.body.className = 'night-mode'; // MODIFICATION: Set default state to night mode
-        clearTimeout(idleTimer);
-        clearInterval(countdownInterval);
+        document.body.className = 'night-mode'; 
+        
+        clearInterval(countdownInterval); // Clear any existing countdown
         autobotCountdownDisplay.style.display = 'none';
         if (audioCtx) audioCtx.suspend();
-        idleTimer = setTimeout(() => startAutobotCountdown(), 7000);
+        
+        // MODIFICATION: Start the countdown immediately instead of after a delay
+        startAutobotCountdown();
     }
     
     function toggleHelpScreen(show) {
@@ -563,12 +563,12 @@ window.addEventListener('load', function() {
             if (show) {
                 devControlsSection.style.display = isDevMode ? 'block' : 'none';
             }
-            clearTimeout(idleTimer);
+            // MODIFICATION: Stop countdown if help is opened from start menu
             clearInterval(countdownInterval);
             autobotCountdownDisplay.style.display = 'none';
             startScreen.style.display = show ? 'none' : 'flex';
             if (!show) { 
-                 idleTimer = setTimeout(() => startAutobotCountdown(), 7000);
+                 startAutobotCountdown(); // Restart countdown when help is closed
             }
         }
     }
@@ -582,7 +582,8 @@ window.addEventListener('load', function() {
             if (autobotCountdown <= 0) {
                 clearInterval(countdownInterval);
                 autobotCountdownDisplay.style.display = 'none';
-                startGame(Math.random() > 0.5, true); 
+                // MODIFICATION: Autobot always starts a night flight
+                startGame(true, true); 
             } else {
                 autobotCountdownDisplay.textContent = `Autobot demo starting in ${autobotCountdown}...`;
             }
@@ -601,7 +602,6 @@ window.addEventListener('load', function() {
         isPaused = false; 
         gameOverReason = '';
         damageMessage = { text: '', timer: 0 };
-        clearTimeout(idleTimer);
         clearInterval(countdownInterval);
         autobotCountdownDisplay.style.display = 'none';
         setupAudio();
@@ -637,7 +637,6 @@ window.addEventListener('load', function() {
         gameOverReasonElement.textContent = gameOverReason;
         finalScoreElement.textContent = score;
         gameOverScreen.style.display = 'block';
-        clearTimeout(idleTimer);
         clearInterval(countdownInterval);
     }
 
