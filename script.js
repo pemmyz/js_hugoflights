@@ -530,7 +530,7 @@ window.addEventListener('load', function() {
         gameOverScreen.style.display = 'none';
         helpScreen.style.display = 'none';
         botModeDisplay.style.display = 'none';
-        document.body.className = '';
+        document.body.className = 'night-mode'; // MODIFICATION: Set default state to night mode
         clearTimeout(idleTimer);
         clearInterval(countdownInterval);
         autobotCountdownDisplay.style.display = 'none';
@@ -659,7 +659,6 @@ window.addEventListener('load', function() {
         redBalls = redBalls.filter(b => b.x + b.radius > 0);
     }
     
-    // --- MODIFICATION START: New Hitbox Logic ---
     function getPlayerDamageHitbox() {
         // Returns the hitbox used for colliding with threats (red balls, clouds).
         switch (difficulty) {
@@ -685,7 +684,6 @@ window.addEventListener('load', function() {
                 return { x: player.x + player.width * 0.15, y: player.y + player.height * 0.15, width: player.width * 0.7, height: player.height * 0.7 };
         }
     }
-    // --- MODIFICATION END ---
 
     function checkRectCircleCollision(rect, circle) {
         // Finds the closest point on the rectangle to the circle's center.
