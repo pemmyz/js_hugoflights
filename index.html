@@ -89,15 +89,37 @@
                 <!-- MODIFICATION START: Difficulty Settings -->
                 <div class="controls-section">
                     <h3>Game Settings</h3>
-                    <label for="difficulty-select">Difficulty:</label>
-                    <select id="difficulty-select">
-                        <option value="easy">Easy</option>
-                        <option value="medium">Medium</option>
-                        <option value="hard" selected>Hard</option>
-                    </select>
+                    <div class="setting-item">
+                        <label for="difficulty-select">Difficulty:</label>
+                        <select id="difficulty-select">
+                            <option value="easy">Easy</option>
+                            <option value="medium">Medium</option>
+                            <option value="hard" selected>Hard</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </div>
+
+                    <!-- Custom Sliders Container -->
+                    <div id="custom-difficulty-settings" style="display: none;">
+                        <div class="slider-control">
+                            <label for="blue-ball-slider">Blue Ball Freq:</label>
+                            <input type="range" id="blue-ball-slider" min="40" max="150" value="80">
+                            <span id="blue-ball-value">80</span>
+                        </div>
+                        <div class="slider-control">
+                            <label for="red-ball-slider">Red Ball Freq:</label>
+                            <input type="range" id="red-ball-slider" min="50" max="200" value="90">
+                            <span id="red-ball-value">90</span>
+                        </div>
+                        <div class="slider-control">
+                            <label for="thundercloud-slider">Cloud Freq:</label>
+                            <input type="range" id="thundercloud-slider" min="200" max="500" value="300">
+                            <span id="thundercloud-value">300</span>
+                        </div>
+                        <p class="slider-note">Note: Lower numbers mean more frequent spawns.</p>
+                    </div>
                 </div>
                 <!-- MODIFICATION END -->
-
 
                 <div id="audio-controls">
                     <label for="volume-slider">Volume:</label>

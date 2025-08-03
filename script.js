@@ -33,6 +33,15 @@ window.addEventListener('load', function() {
     const devToggleBotPath = document.getElementById('dev-toggle-bot-path');
     const devToggleBotTarget = document.getElementById('dev-toggle-bot-target');
 
+    // Difficulty Slider Elements
+    const customDifficultySettings = document.getElementById('custom-difficulty-settings');
+    const blueBallSlider = document.getElementById('blue-ball-slider');
+    const blueBallValue = document.getElementById('blue-ball-value');
+    const redBallSlider = document.getElementById('red-ball-slider');
+    const redBallValue = document.getElementById('red-ball-value');
+    const thundercloudSlider = document.getElementById('thundercloud-slider');
+    const thundercloudValue = document.getElementById('thundercloud-value');
+
     const autobotCountdownDisplay = document.createElement('div');
     autobotCountdownDisplay.id = 'autobot-countdown';
     autobotCountdownDisplay.style.display = 'none';
@@ -46,7 +55,17 @@ window.addEventListener('load', function() {
     let animationFrameId;
     let gameOverReason = '';
     let damageMessage = { text: '', timer: 0 };
-    let difficulty = 'hard'; // Can be 'easy', 'medium', 'hard'
+    
+    // Difficulty State Management
+    let difficulty = 'hard';
+    let lastSelectedPreset = 'hard';
+
+    const DIFFICULTY_PRESETS = {
+        easy:       { blueBallBase: 60, redBall: 120, thunderCloud: 400 },
+        medium:     { blueBallBase: 70, redBall: 100, thunderCloud: 350 },
+        hard:       { blueBallBase: 80, redBall: 90,  thunderCloud: 300 }
+    };
+    let currentRates = { ...DIFFICULTY_PRESETS.hard };
     
     // --- Developer Mode State Enhancement ---
     let isDevMode = false; 
@@ -236,6 +255,21 @@ window.addEventListener('load', function() {
         }
     }
 
+    // Helper to update slider UI from a preset
+    function updateSlidersFromPreset(presetName) {
+        const preset = DIFFICULTY_PRESETS[presetName];
+        if (!preset) return;
+    
+        blueBallSlider.value = preset.blueBallBase;
+        blueBallValue.textContent = preset.blueBallBase;
+        
+        redBallSlider.value = preset.redBall;
+        redBallValue.textContent = preset.redBall;
+    
+        thundercloudSlider.value = preset.thunderCloud;
+        thundercloudValue.textContent = preset.thunderCloud;
+    }
+
     // --- INPUT AND EVENT LISTENERS ---
     function setupEventListeners() {
         const startThrust = (e) => {
@@ -340,8 +374,43 @@ window.addEventListener('load', function() {
             muteButton.textContent = isMuted ? "Unmute" : "Mute";
         });
         
+        // Difficulty Controls Event Listeners
         difficultySelect.addEventListener('change', (e) => {
-            difficulty = e.target.value;
+            const newDifficulty = e.target.value;
+            difficulty = newDifficulty;
+    
+            if (newDifficulty === 'custom') {
+                customDifficultySettings.style.display = 'block';
+                // Load settings from the last selected preset into sliders
+                updateSlidersFromPreset(lastSelectedPreset);
+                // Also update the currentRates to match the sliders
+                currentRates.blueBallBase = parseInt(blueBallSlider.value);
+                currentRates.redBall = parseInt(redBallSlider.value);
+                currentRates.thunderCloud = parseInt(thundercloudSlider.value);
+            } else {
+                customDifficultySettings.style.display = 'none';
+                // Update lastSelectedPreset if it's a valid preset
+                if (DIFFICULTY_PRESETS[newDifficulty]) {
+                    lastSelectedPreset = newDifficulty;
+                    currentRates = { ...DIFFICULTY_PRESETS[newDifficulty] };
+                }
+            }
+        });
+    
+        // Listeners for custom sliders
+        blueBallSlider.addEventListener('input', (e) => {
+            currentRates.blueBallBase = parseInt(e.target.value);
+            blueBallValue.textContent = e.target.value;
+        });
+    
+        redBallSlider.addEventListener('input', (e) => {
+            currentRates.redBall = parseInt(e.target.value);
+            redBallValue.textContent = e.target.value;
+        });
+    
+        thundercloudSlider.addEventListener('input', (e) => {
+            currentRates.thunderCloud = parseInt(e.target.value);
+            thundercloudValue.textContent = e.target.value;
         });
 
         devToggleHitboxes.addEventListener('change', () => { devSettings.showHitboxes = devToggleHitboxes.checked; });
@@ -534,7 +603,6 @@ window.addEventListener('load', function() {
         autobotCountdownDisplay.style.display = 'none';
         if (audioCtx) audioCtx.suspend();
         
-        // MODIFICATION: Start the countdown immediately instead of after a delay
         startAutobotCountdown();
     }
     
@@ -563,12 +631,11 @@ window.addEventListener('load', function() {
             if (show) {
                 devControlsSection.style.display = isDevMode ? 'block' : 'none';
             }
-            // MODIFICATION: Stop countdown if help is opened from start menu
             clearInterval(countdownInterval);
             autobotCountdownDisplay.style.display = 'none';
             startScreen.style.display = show ? 'none' : 'flex';
             if (!show) { 
-                 startAutobotCountdown(); // Restart countdown when help is closed
+                 startAutobotCountdown();
             }
         }
     }
@@ -582,7 +649,6 @@ window.addEventListener('load', function() {
             if (autobotCountdown <= 0) {
                 clearInterval(countdownInterval);
                 autobotCountdownDisplay.style.display = 'none';
-                // MODIFICATION: Autobot always starts a night flight
                 startGame(true, true); 
             } else {
                 autobotCountdownDisplay.textContent = `Autobot demo starting in ${autobotCountdown}...`;
@@ -640,11 +706,30 @@ window.addEventListener('load', function() {
         clearInterval(countdownInterval);
     }
 
+    // Dynamic Blue Ball Spawn Rate
+    function getBlueBallRate() {
+        const scoreModifier = Math.floor(score / 500) * 5;
+        return currentRates.blueBallBase + scoreModifier;
+    }
+
+    // Object generation now uses dynamic rates
     function handleObjectGeneration() {
-        if (frame % 150 === 0) clouds.push(new Cloud(canvas.width + 100, Math.random() * canvas.height * 0.8));
-        if (frame % 350 === 0) thunderClouds.push(new Cloud(canvas.width + 200, Math.random() * canvas.height * 0.8, true));
-        if (frame % 70 === 0) blueBalls.push(new Ball(canvas.width + 20, Math.random() * canvas.height, 10, 'blue'));
-        if (frame % 100 === 0) redBalls.push(new Ball(canvas.width + 20, Math.random() * canvas.height, 12, 'red'));
+        if (frame % 150 === 0) {
+            clouds.push(new Cloud(canvas.width + 100, Math.random() * canvas.height * 0.8));
+        }
+        
+        if (frame % currentRates.thunderCloud === 0) {
+            thunderClouds.push(new Cloud(canvas.width + 200, Math.random() * canvas.height * 0.8, true));
+        }
+
+        const blueBallRate = getBlueBallRate();
+        if (frame % blueBallRate === 0) {
+            blueBalls.push(new Ball(canvas.width + 20, Math.random() * canvas.height, 10, 'blue'));
+        }
+
+        if (frame % currentRates.redBall === 0) {
+            redBalls.push(new Ball(canvas.width + 20, Math.random() * canvas.height, 12, 'red'));
+        }
     }
 
     function updateAndDrawObjects() {
@@ -658,9 +743,12 @@ window.addEventListener('load', function() {
         redBalls = redBalls.filter(b => b.x + b.radius > 0);
     }
     
+    // HITBOX RESTORE START
     function getPlayerDamageHitbox() {
         // Returns the hitbox used for colliding with threats (red balls, clouds).
-        switch (difficulty) {
+        // This is now based on difficulty, where 'hard' has a larger hitbox.
+        const effectiveDifficulty = (difficulty === 'custom') ? lastSelectedPreset : difficulty;
+        switch (effectiveDifficulty) {
             case 'easy': // Smallest hitbox for damage (harder to get hit)
                 return { x: player.x + player.width * 0.15, y: player.y + player.height * 0.15, width: player.width * 0.7, height: player.height * 0.7 };
             case 'medium': // Medium hitbox for damage
@@ -673,7 +761,9 @@ window.addEventListener('load', function() {
 
     function getPlayerCollectionHitbox() {
         // Returns the hitbox used for collecting items (blue balls).
-        switch (difficulty) {
+        // This is now based on difficulty, where 'easy' has a larger hitbox.
+        const effectiveDifficulty = (difficulty === 'custom') ? lastSelectedPreset : difficulty;
+        switch (effectiveDifficulty) {
             case 'easy': // Largest hitbox for collection (easier to collect)
                 return { x: player.x - 15, y: player.y - 15, width: player.width + 40, height: player.height + 30 };
             case 'medium': // Medium hitbox for collection
@@ -683,21 +773,18 @@ window.addEventListener('load', function() {
                 return { x: player.x + player.width * 0.15, y: player.y + player.height * 0.15, width: player.width * 0.7, height: player.height * 0.7 };
         }
     }
+    // HITBOX RESTORE END
 
     function checkRectCircleCollision(rect, circle) {
-        // Finds the closest point on the rectangle to the circle's center.
         const closestX = Math.max(rect.x, Math.min(circle.x, rect.x + rect.width));
         const closestY = Math.max(rect.y, Math.min(circle.y, rect.y + rect.height));
-
-        // Calculates the distance between the closest point and the circle's center.
         const distanceX = circle.x - closestX;
         const distanceY = circle.y - closestY;
-
-        // If the squared distance is less than the circle's squared radius, a collision occurred.
         const distanceSquared = (distanceX * distanceX) + (distanceY * distanceY);
         return distanceSquared < (circle.radius * circle.radius);
     }
     
+    // HITBOX RESTORE START
     function checkCollisions() {
         // Get the separate hitboxes for damage and collection based on difficulty
         const playerDamageHitbox = getPlayerDamageHitbox();
@@ -739,6 +826,7 @@ window.addEventListener('load', function() {
             }
         });
     }
+    // HITBOX RESTORE END
 
     function updateUI() {
         scoreElement.textContent = `Score: ${score}`;
@@ -789,23 +877,25 @@ window.addEventListener('load', function() {
         }
     }
 
+    // HITBOX RESTORE START
     function drawDevInfo() {
         if (!isDevMode || !player) return;
 
         if (devSettings.showHitboxes) {
             // Draw Player Hitboxes with different colors
             const playerDamageHitbox = getPlayerDamageHitbox();
-            ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'; // Green for damage
+            ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)'; // Red for damage
             ctx.lineWidth = 2;
             ctx.strokeRect(playerDamageHitbox.x, playerDamageHitbox.y, playerDamageHitbox.width, playerDamageHitbox.height);
 
             const playerCollectionHitbox = getPlayerCollectionHitbox();
-            ctx.strokeStyle = 'rgba(0, 0, 255, 0.8)'; // Blue for collection
+            ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'; // Green for collection
             ctx.lineWidth = 2;
             ctx.strokeRect(playerCollectionHitbox.x, playerCollectionHitbox.y, playerCollectionHitbox.width, playerCollectionHitbox.height);
             
             // Draw Thunder Cloud Hitboxes
-            ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)'; ctx.lineWidth = 2;
+            ctx.strokeStyle = 'rgba(255, 165, 0, 0.8)'; // Orange for clouds
+            ctx.lineWidth = 2;
             thunderClouds.forEach(cloud => {
                 const cloudHitboxX = cloud.x + cloud.boundingBoxOffsetX;
                 const cloudHitboxY = cloud.y + cloud.boundingBoxOffsetY;
@@ -851,6 +941,7 @@ window.addEventListener('load', function() {
             ctx.restore();
         }
     }
+    // HITBOX RESTORE END
 
     function animate() {
         if (gameOver) {
@@ -910,6 +1001,7 @@ window.addEventListener('load', function() {
         volumeSlider.value = currentVolume;
         muteButton.textContent = isMuted ? "Unmute" : "Mute";
         difficultySelect.value = difficulty; // Ensure dropdown reflects the default
+        currentRates = { ...DIFFICULTY_PRESETS[difficulty] }; // Set initial rates
 
         devToggleHitboxes.checked = devSettings.showHitboxes;
         devToggleBotPath.checked = devSettings.showBotPath;

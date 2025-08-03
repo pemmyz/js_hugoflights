@@ -168,7 +168,6 @@ button {
 button:hover { transform: scale(1.05); }
 button:active { transform: scale(1.0); }
 
-/* MODIFICATION START: Style for select dropdown */
 select {
     padding: 8px 12px;
     font-size: 16px;
@@ -177,7 +176,6 @@ select {
     background-color: white;
     cursor: pointer;
 }
-/* MODIFICATION END */
 
 #start-day-button { background-color: #3498db; color: white; }
 #start-night-button { background-color: #2c3e50; color: white; }
@@ -226,19 +224,21 @@ select {
     text-align: center;
 }
 
-
 /* Styling for the new section in the help menu */
 #help-screen .controls-section {
     margin-top: 20px;
-    padding-top: 15px;
+    padding: 15px;
     border-top: 1px solid #ccc;
     text-align: left;
-    display: inline-block;
+    display: block; /* Changed from inline-block */
+    width: 85%;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 #help-screen .controls-section h3 {
     text-align: center;
-    margin-bottom: 10px;
+    margin-bottom: 15px; /* Increased margin */
 }
 
 #help-screen .controls-section li {
@@ -249,3 +249,56 @@ select {
     font-weight: bold;
     margin-right: 8px;
 }
+
+/* MODIFICATION START: Custom Difficulty Styles */
+.setting-item {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+#custom-difficulty-settings {
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px dashed #ccc;
+}
+
+.slider-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.slider-control label {
+    font-weight: normal;
+    font-size: 14px;
+    flex-basis: 120px;
+    flex-shrink: 0;
+}
+
+.slider-control input[type="range"] {
+    width: 100%;
+    cursor: pointer;
+}
+
+.slider-control span {
+    font-family: 'Courier New', Courier, monospace;
+    font-weight: bold;
+    min-width: 35px;
+    text-align: right;
+    background-color: #eee;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+.slider-note {
+    font-size: 12px;
+    color: #555;
+    text-align: center;
+    margin-top: 10px;
+    margin-bottom: 0;
+    font-style: italic;
+}
+/* MODIFICATION END */
