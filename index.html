@@ -37,6 +37,19 @@
                 <p>Choose your flight time:</p>
                 <button id="start-day-button">Start Day Flight</button>
                 <button id="start-night-button">Start Night Flight</button>
+                
+                <!-- MODIFICATION START: Difficulty setting on main menu -->
+                <div class="difficulty-setting-main">
+                    <label for="start-difficulty-select">Difficulty:</label>
+                    <select id="start-difficulty-select">
+                        <option value="easy">Easy</option>
+                        <option value="medium">Medium</option>
+                        <option value="hard">Hard</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </div>
+                <!-- MODIFICATION END -->
+
                 <button id="help-button">How to Play</button>
                 <p class="autobot-info">Wait 7 seconds for Autobot demo...</p>
             </div>
@@ -93,8 +106,8 @@
                         <label for="difficulty-select">Difficulty:</label>
                         <select id="difficulty-select">
                             <option value="easy">Easy</option>
-                            <option value="medium">Medium</option>
-                            <option value="hard" selected>Hard</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="hard">Hard</option>
                             <option value="custom">Custom</option>
                         </select>
                     </div>

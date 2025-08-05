@@ -126,6 +126,16 @@ canvas {
 #start-screen p { font-size: 20px; }
 #start-screen .autobot-info { font-size: 14px; color: #ccc; margin-top: 20px; }
 
+/* MODIFICATION START: Style for main menu difficulty selector */
+.difficulty-setting-main {
+    margin-top: 15px;
+    font-size: 18px;
+}
+.difficulty-setting-main label {
+    margin-right: 10px;
+}
+/* MODIFICATION END */
+
 #help-screen ul {
     list-style-type: none;
     padding: 0;

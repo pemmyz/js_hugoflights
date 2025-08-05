@@ -26,6 +26,9 @@ window.addEventListener('load', function() {
     const muteButton = document.getElementById('mute-button');
     const bottomHelpHint = document.getElementById('bottom-help-hint');
     const difficultySelect = document.getElementById('difficulty-select');
+    // MODIFICATION START
+    const startDifficultySelect = document.getElementById('start-difficulty-select');
+    // MODIFICATION END
 
     // Developer Tools Elements
     const devControlsSection = document.getElementById('dev-controls-section');
@@ -56,16 +59,18 @@ window.addEventListener('load', function() {
     let gameOverReason = '';
     let damageMessage = { text: '', timer: 0 };
     
+    // MODIFICATION START: Default difficulty changed to medium
     // Difficulty State Management
-    let difficulty = 'hard';
-    let lastSelectedPreset = 'hard';
+    let difficulty = 'medium';
+    let lastSelectedPreset = 'medium';
 
     const DIFFICULTY_PRESETS = {
         easy:       { blueBallBase: 60, redBall: 120, thunderCloud: 400 },
         medium:     { blueBallBase: 70, redBall: 100, thunderCloud: 350 },
         hard:       { blueBallBase: 80, redBall: 90,  thunderCloud: 300 }
     };
-    let currentRates = { ...DIFFICULTY_PRESETS.hard };
+    let currentRates = { ...DIFFICULTY_PRESETS.medium };
+    // MODIFICATION END
     
     // --- Developer Mode State Enhancement ---
     let isDevMode = false; 
@@ -270,6 +275,32 @@ window.addEventListener('load', function() {
         thundercloudValue.textContent = preset.thunderCloud;
     }
 
+    // MODIFICATION START: Centralized function to handle difficulty changes
+    function handleDifficultyChange(newDifficulty) {
+        difficulty = newDifficulty;
+
+        // Sync both dropdowns
+        difficultySelect.value = newDifficulty;
+        startDifficultySelect.value = newDifficulty;
+
+        if (newDifficulty === 'custom') {
+            customDifficultySettings.style.display = 'block';
+            updateSlidersFromPreset(lastSelectedPreset);
+            // Also update the currentRates to match the sliders
+            currentRates.blueBallBase = parseInt(blueBallSlider.value);
+            currentRates.redBall = parseInt(redBallSlider.value);
+            currentRates.thunderCloud = parseInt(thundercloudSlider.value);
+        } else {
+            customDifficultySettings.style.display = 'none';
+            // Update lastSelectedPreset if it's a valid preset
+            if (DIFFICULTY_PRESETS[newDifficulty]) {
+                lastSelectedPreset = newDifficulty;
+                currentRates = { ...DIFFICULTY_PRESETS[newDifficulty] };
+            }
+        }
+    }
+    // MODIFICATION END
+
     // --- INPUT AND EVENT LISTENERS ---
     function setupEventListeners() {
         const startThrust = (e) => {
@@ -374,28 +405,11 @@ window.addEventListener('load', function() {
             muteButton.textContent = isMuted ? "Unmute" : "Mute";
         });
         
+        // MODIFICATION START: Use the centralized handler for both selectors
         // Difficulty Controls Event Listeners
-        difficultySelect.addEventListener('change', (e) => {
-            const newDifficulty = e.target.value;
-            difficulty = newDifficulty;
-    
-            if (newDifficulty === 'custom') {
-                customDifficultySettings.style.display = 'block';
-                // Load settings from the last selected preset into sliders
-                updateSlidersFromPreset(lastSelectedPreset);
-                // Also update the currentRates to match the sliders
-                currentRates.blueBallBase = parseInt(blueBallSlider.value);
-                currentRates.redBall = parseInt(redBallSlider.value);
-                currentRates.thunderCloud = parseInt(thundercloudSlider.value);
-            } else {
-                customDifficultySettings.style.display = 'none';
-                // Update lastSelectedPreset if it's a valid preset
-                if (DIFFICULTY_PRESETS[newDifficulty]) {
-                    lastSelectedPreset = newDifficulty;
-                    currentRates = { ...DIFFICULTY_PRESETS[newDifficulty] };
-                }
-            }
-        });
+        difficultySelect.addEventListener('change', (e) => handleDifficultyChange(e.target.value));
+        startDifficultySelect.addEventListener('change', (e) => handleDifficultyChange(e.target.value));
+        // MODIFICATION END
     
         // Listeners for custom sliders
         blueBallSlider.addEventListener('input', (e) => {
@@ -1000,8 +1014,10 @@ window.addEventListener('load', function() {
         
         volumeSlider.value = currentVolume;
         muteButton.textContent = isMuted ? "Unmute" : "Mute";
-        difficultySelect.value = difficulty; // Ensure dropdown reflects the default
-        currentRates = { ...DIFFICULTY_PRESETS[difficulty] }; // Set initial rates
+
+        // MODIFICATION START: Set initial difficulty state and UI
+        handleDifficultyChange(difficulty);
+        // MODIFICATION END
 
         devToggleHitboxes.checked = devSettings.showHitboxes;
         devToggleBotPath.checked = devSettings.showBotPath;
