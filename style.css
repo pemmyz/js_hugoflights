@@ -130,9 +130,12 @@ canvas {
 .difficulty-setting-main {
     margin-top: 15px;
     font-size: 18px;
+    display: flex; /* Use flexbox for layout */
+    flex-direction: column; /* Stack items vertically */
+    align-items: center; /* Center items horizontally */
 }
 .difficulty-setting-main label {
-    margin-right: 10px;
+    margin-bottom: 8px; /* Add some space between the label and the dropdown */
 }
 /* MODIFICATION END */
 
