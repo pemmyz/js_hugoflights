@@ -26,9 +26,7 @@ window.addEventListener('load', function() {
     const muteButton = document.getElementById('mute-button');
     const bottomHelpHint = document.getElementById('bottom-help-hint');
     const difficultySelect = document.getElementById('difficulty-select');
-    // MODIFICATION START
     const startDifficultySelect = document.getElementById('start-difficulty-select');
-    // MODIFICATION END
 
     // Developer Tools Elements
     const devControlsSection = document.getElementById('dev-controls-section');
@@ -59,7 +57,11 @@ window.addEventListener('load', function() {
     let gameOverReason = '';
     let damageMessage = { text: '', timer: 0 };
     
-    // MODIFICATION START: Default difficulty changed to medium
+    // --- GAMEPAD STATE ---
+    let playerGamepadAssignment = null; 
+    let gamepadLastThrustState = false; 
+    const gamepads = {}; 
+
     // Difficulty State Management
     let difficulty = 'medium';
     let lastSelectedPreset = 'medium';
@@ -70,7 +72,6 @@ window.addEventListener('load', function() {
         hard:       { blueBallBase: 80, redBall: 90,  thunderCloud: 300 }
     };
     let currentRates = { ...DIFFICULTY_PRESETS.medium };
-    // MODIFICATION END
     
     // --- Developer Mode State Enhancement ---
     let isDevMode = false; 
@@ -241,6 +242,30 @@ window.addEventListener('load', function() {
         update() { this.x -= gameSpeed * (this.isThunder ? 0.6 : 0.4); }
     }
 
+    // --- GAMEPAD INPUT HANDLER ---
+    function handleGamepadInput() {
+        if (playerGamepadAssignment === null) return;
+
+        const polledPads = navigator.getGamepads ? navigator.getGamepads() : [];
+        if (!polledPads || !polledPads[playerGamepadAssignment]) return;
+
+        const pad = polledPads[playerGamepadAssignment];
+
+        const THRUST_BUTTON_INDEX = 0;   // 'A' on Xbox, 'X' on PS
+        const ALT_THRUST_BUTTON_INDEX = 7; // Right Trigger
+
+        const isThrustingNow = pad.buttons[THRUST_BUTTON_INDEX].pressed || pad.buttons[ALT_THRUST_BUTTON_INDEX].value > 0.1;
+
+        if (isThrustingNow && !gamepadLastThrustState) {
+            startThrust({ preventDefault: () => {} });
+        } else if (!isThrustingNow && gamepadLastThrustState) {
+            endThrust({ preventDefault: () => {} });
+        }
+
+        gamepadLastThrustState = isThrustingNow;
+    }
+
+
     // --- PAGE VISIBILITY API FOR AUDIO ---
     function handleVisibilityChange() {
         if (!audioCtx) return;
@@ -260,7 +285,6 @@ window.addEventListener('load', function() {
         }
     }
 
-    // Helper to update slider UI from a preset
     function updateSlidersFromPreset(presetName) {
         const preset = DIFFICULTY_PRESETS[presetName];
         if (!preset) return;
@@ -275,44 +299,43 @@ window.addEventListener('load', function() {
         thundercloudValue.textContent = preset.thunderCloud;
     }
 
-    // MODIFICATION START: Centralized function to handle difficulty changes
     function handleDifficultyChange(newDifficulty) {
         difficulty = newDifficulty;
-
-        // Sync both dropdowns
         difficultySelect.value = newDifficulty;
         startDifficultySelect.value = newDifficulty;
-
         if (newDifficulty === 'custom') {
             customDifficultySettings.style.display = 'block';
             updateSlidersFromPreset(lastSelectedPreset);
-            // Also update the currentRates to match the sliders
             currentRates.blueBallBase = parseInt(blueBallSlider.value);
             currentRates.redBall = parseInt(redBallSlider.value);
             currentRates.thunderCloud = parseInt(thundercloudSlider.value);
         } else {
             customDifficultySettings.style.display = 'none';
-            // Update lastSelectedPreset if it's a valid preset
             if (DIFFICULTY_PRESETS[newDifficulty]) {
                 lastSelectedPreset = newDifficulty;
                 currentRates = { ...DIFFICULTY_PRESETS[newDifficulty] };
             }
         }
     }
-    // MODIFICATION END
+    
+    // === FIX START: Moved startThrust and endThrust to the parent scope ===
+    function startThrust(e) {
+        if (gameOver || isPaused || !player || isBotActive) return;
+        e.preventDefault();
+        player.isThrusting = true;
+    }
+
+    function endThrust(e) {
+        if (gameOver || isPaused || !player || isBotActive) return;
+        e.preventDefault();
+        player.isThrusting = false;
+    }
+    // === FIX END ===
 
     // --- INPUT AND EVENT LISTENERS ---
     function setupEventListeners() {
-        const startThrust = (e) => {
-            if (gameOver || isPaused || !player || isBotActive) return;
-            e.preventDefault();
-            player.isThrusting = true;
-        };
-        const endThrust = (e) => {
-            if (gameOver || isPaused || !player || isBotActive) return;
-            e.preventDefault();
-            player.isThrusting = false;
-        };
+        // === FIX: The definitions for startThrust and endThrust have been moved out of this function. ===
+        // The event listeners below will now correctly reference the functions in the parent scope.
 
         const stopAutobotOnInteraction = () => {
             if (isBotActive) { 
@@ -405,13 +428,9 @@ window.addEventListener('load', function() {
             muteButton.textContent = isMuted ? "Unmute" : "Mute";
         });
         
-        // MODIFICATION START: Use the centralized handler for both selectors
-        // Difficulty Controls Event Listeners
         difficultySelect.addEventListener('change', (e) => handleDifficultyChange(e.target.value));
         startDifficultySelect.addEventListener('change', (e) => handleDifficultyChange(e.target.value));
-        // MODIFICATION END
     
-        // Listeners for custom sliders
         blueBallSlider.addEventListener('input', (e) => {
             currentRates.blueBallBase = parseInt(e.target.value);
             blueBallValue.textContent = e.target.value;
@@ -430,6 +449,29 @@ window.addEventListener('load', function() {
         devToggleHitboxes.addEventListener('change', () => { devSettings.showHitboxes = devToggleHitboxes.checked; });
         devToggleBotPath.addEventListener('change', () => { devSettings.showBotPath = devToggleBotPath.checked; });
         devToggleBotTarget.addEventListener('change', () => { devSettings.showBotTarget = devToggleBotTarget.checked; });
+
+        window.addEventListener("gamepadconnected", e => {
+            console.log(`Gamepad connected at index ${e.gamepad.index}: ${e.gamepad.id}.`);
+            gamepads[e.gamepad.index] = e.gamepad;
+            if (playerGamepadAssignment === null) {
+                playerGamepadAssignment = e.gamepad.index;
+                console.log(`Gamepad ${e.gamepad.index} assigned to player.`);
+            }
+        });
+
+        window.addEventListener("gamepaddisconnected", e => {
+            console.log(`Gamepad disconnected from index ${e.gamepad.index}: ${e.gamepad.id}.`);
+            delete gamepads[e.gamepad.index];
+            if (playerGamepadAssignment === e.gamepad.index) {
+                playerGamepadAssignment = null;
+                console.log(`Player's gamepad disconnected.`);
+                const firstAvailableGamepad = Object.keys(gamepads)[0];
+                if (firstAvailableGamepad) {
+                    playerGamepadAssignment = parseInt(firstAvailableGamepad, 10);
+                    console.log(`Switched to Gamepad ${playerGamepadAssignment}.`);
+                }
+            }
+        });
     }
 
     // --- BOT AI ALGORITHMS ---
@@ -613,7 +655,7 @@ window.addEventListener('load', function() {
         botModeDisplay.style.display = 'none';
         document.body.className = 'night-mode'; 
         
-        clearInterval(countdownInterval); // Clear any existing countdown
+        clearInterval(countdownInterval);
         autobotCountdownDisplay.style.display = 'none';
         if (audioCtx) audioCtx.suspend();
         
@@ -720,13 +762,11 @@ window.addEventListener('load', function() {
         clearInterval(countdownInterval);
     }
 
-    // Dynamic Blue Ball Spawn Rate
     function getBlueBallRate() {
         const scoreModifier = Math.floor(score / 500) * 5;
         return currentRates.blueBallBase + scoreModifier;
     }
 
-    // Object generation now uses dynamic rates
     function handleObjectGeneration() {
         if (frame % 150 === 0) {
             clouds.push(new Cloud(canvas.width + 100, Math.random() * canvas.height * 0.8));
@@ -757,37 +797,31 @@ window.addEventListener('load', function() {
         redBalls = redBalls.filter(b => b.x + b.radius > 0);
     }
     
-    // HITBOX RESTORE START
     function getPlayerDamageHitbox() {
-        // Returns the hitbox used for colliding with threats (red balls, clouds).
-        // This is now based on difficulty, where 'hard' has a larger hitbox.
         const effectiveDifficulty = (difficulty === 'custom') ? lastSelectedPreset : difficulty;
         switch (effectiveDifficulty) {
-            case 'easy': // Smallest hitbox for damage (harder to get hit)
+            case 'easy': 
                 return { x: player.x + player.width * 0.15, y: player.y + player.height * 0.15, width: player.width * 0.7, height: player.height * 0.7 };
-            case 'medium': // Medium hitbox for damage
+            case 'medium': 
                 return { x: player.x, y: player.y, width: player.width, height: player.height };
-            case 'hard': // Largest hitbox for damage (easier to get hit)
+            case 'hard': 
             default:
                 return { x: player.x - 15, y: player.y - 15, width: player.width + 40, height: player.height + 30 };
         }
     }
 
     function getPlayerCollectionHitbox() {
-        // Returns the hitbox used for collecting items (blue balls).
-        // This is now based on difficulty, where 'easy' has a larger hitbox.
         const effectiveDifficulty = (difficulty === 'custom') ? lastSelectedPreset : difficulty;
         switch (effectiveDifficulty) {
-            case 'easy': // Largest hitbox for collection (easier to collect)
+            case 'easy': 
                 return { x: player.x - 15, y: player.y - 15, width: player.width + 40, height: player.height + 30 };
-            case 'medium': // Medium hitbox for collection
+            case 'medium': 
                 return { x: player.x, y: player.y, width: player.width, height: player.height };
-            case 'hard': // Smallest hitbox for collection (harder to collect)
+            case 'hard': 
             default:
                 return { x: player.x + player.width * 0.15, y: player.y + player.height * 0.15, width: player.width * 0.7, height: player.height * 0.7 };
         }
     }
-    // HITBOX RESTORE END
 
     function checkRectCircleCollision(rect, circle) {
         const closestX = Math.max(rect.x, Math.min(circle.x, rect.x + rect.width));
@@ -798,13 +832,10 @@ window.addEventListener('load', function() {
         return distanceSquared < (circle.radius * circle.radius);
     }
     
-    // HITBOX RESTORE START
     function checkCollisions() {
-        // Get the separate hitboxes for damage and collection based on difficulty
         const playerDamageHitbox = getPlayerDamageHitbox();
         const playerCollectionHitbox = getPlayerCollectionHitbox();
 
-        // Check for collisions with threats using the damage hitbox
         redBalls.forEach((ball, index) => {
             if (checkRectCircleCollision(playerDamageHitbox, ball)) {
                 redBalls.splice(index, 1);
@@ -818,7 +849,6 @@ window.addEventListener('load', function() {
             const cloudHitboxX = cloud.x + cloud.boundingBoxOffsetX;
             const cloudHitboxY = cloud.y + cloud.boundingBoxOffsetY;
 
-            // AABB collision check using the damage hitbox
             if (playerDamageHitbox.x < cloudHitboxX + cloud.width &&
                 playerDamageHitbox.x + playerDamageHitbox.width > cloudHitboxX &&
                 playerDamageHitbox.y < cloudHitboxY + cloud.height &&
@@ -830,7 +860,6 @@ window.addEventListener('load', function() {
             }
         });
 
-        // Check for collisions with collectibles using the collection hitbox
         blueBalls.forEach((ball, index) => {
             if (checkRectCircleCollision(playerCollectionHitbox, ball)) {
                 blueBalls.splice(index, 1);
@@ -840,7 +869,6 @@ window.addEventListener('load', function() {
             }
         });
     }
-    // HITBOX RESTORE END
 
     function updateUI() {
         scoreElement.textContent = `Score: ${score}`;
@@ -891,24 +919,21 @@ window.addEventListener('load', function() {
         }
     }
 
-    // HITBOX RESTORE START
     function drawDevInfo() {
         if (!isDevMode || !player) return;
 
         if (devSettings.showHitboxes) {
-            // Draw Player Hitboxes with different colors
             const playerDamageHitbox = getPlayerDamageHitbox();
-            ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)'; // Red for damage
+            ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)'; 
             ctx.lineWidth = 2;
             ctx.strokeRect(playerDamageHitbox.x, playerDamageHitbox.y, playerDamageHitbox.width, playerDamageHitbox.height);
 
             const playerCollectionHitbox = getPlayerCollectionHitbox();
-            ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'; // Green for collection
+            ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)';
             ctx.lineWidth = 2;
             ctx.strokeRect(playerCollectionHitbox.x, playerCollectionHitbox.y, playerCollectionHitbox.width, playerCollectionHitbox.height);
             
-            // Draw Thunder Cloud Hitboxes
-            ctx.strokeStyle = 'rgba(255, 165, 0, 0.8)'; // Orange for clouds
+            ctx.strokeStyle = 'rgba(255, 165, 0, 0.8)';
             ctx.lineWidth = 2;
             thunderClouds.forEach(cloud => {
                 const cloudHitboxX = cloud.x + cloud.boundingBoxOffsetX;
@@ -955,13 +980,14 @@ window.addEventListener('load', function() {
             ctx.restore();
         }
     }
-    // HITBOX RESTORE END
 
     function animate() {
         if (gameOver) {
             if (animationFrameId) cancelAnimationFrame(animationFrameId);
             return;
         }
+        
+        handleGamepadInput();
         
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         handleObjectGeneration();
@@ -1015,9 +1041,7 @@ window.addEventListener('load', function() {
         volumeSlider.value = currentVolume;
         muteButton.textContent = isMuted ? "Unmute" : "Mute";
 
-        // MODIFICATION START: Set initial difficulty state and UI
         handleDifficultyChange(difficulty);
-        // MODIFICATION END
 
         devToggleHitboxes.checked = devSettings.showHitboxes;
         devToggleBotPath.checked = devSettings.showBotPath;
