@@ -251,10 +251,17 @@ window.addEventListener('load', function() {
 
         const pad = polledPads[playerGamepadAssignment];
 
-        const THRUST_BUTTON_INDEX = 0;   // 'A' on Xbox, 'X' on PS
-        const ALT_THRUST_BUTTON_INDEX = 7; // Right Trigger
+        // === FIX START: Check all face buttons (A, B, X, Y) ===
+        // Define constants for thrust buttons
+        const FACE_BUTTON_INDICES = [0, 1, 2, 3]; // Standard mapping for A, B, X, Y
+        const ALT_THRUST_BUTTON_INDEX = 7;       // Right Trigger
 
-        const isThrustingNow = pad.buttons[THRUST_BUTTON_INDEX].pressed || pad.buttons[ALT_THRUST_BUTTON_INDEX].value > 0.1;
+        // Check if ANY face button is pressed using .some()
+        const faceButtonPressed = FACE_BUTTON_INDICES.some(index => pad.buttons[index].pressed);
+        
+        // Final thrust check includes face buttons OR the trigger
+        const isThrustingNow = faceButtonPressed || pad.buttons[ALT_THRUST_BUTTON_INDEX].value > 0.1;
+        // === FIX END ===
 
         if (isThrustingNow && !gamepadLastThrustState) {
             startThrust({ preventDefault: () => {} });
@@ -318,7 +325,6 @@ window.addEventListener('load', function() {
         }
     }
     
-    // === FIX START: Moved startThrust and endThrust to the parent scope ===
     function startThrust(e) {
         if (gameOver || isPaused || !player || isBotActive) return;
         e.preventDefault();
@@ -330,13 +336,9 @@ window.addEventListener('load', function() {
         e.preventDefault();
         player.isThrusting = false;
     }
-    // === FIX END ===
 
     // --- INPUT AND EVENT LISTENERS ---
     function setupEventListeners() {
-        // === FIX: The definitions for startThrust and endThrust have been moved out of this function. ===
-        // The event listeners below will now correctly reference the functions in the parent scope.
-
         const stopAutobotOnInteraction = () => {
             if (isBotActive) { 
                 stopAutobotAndShowMenu();
