@@ -692,7 +692,7 @@ window.addEventListener('load', function() {
 
 
     // --- GAME STATE & LOOP ---
-    function showStartScreen() {
+function showStartScreen() {
         gameIsActive = false;
         isPaused = false;
         isBotActive = false;
@@ -700,7 +700,11 @@ window.addEventListener('load', function() {
         gameOverScreen.style.display = 'none';
         helpScreen.style.display = 'none';
         botModeDisplay.style.display = 'none';
+        
+        // Preserve fullscreen class if it's currently active
+        const isFullscreen = document.body.classList.contains('fullscreen-active');
         document.body.className = 'night-mode'; 
+        if (isFullscreen) document.body.classList.add('fullscreen-active');
         
         clearInterval(countdownInterval);
         autobotCountdownDisplay.style.display = 'none';
