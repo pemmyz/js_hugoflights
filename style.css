@@ -29,6 +29,46 @@ body.night-mode #bottom-help-hint:hover {
     color: #fff;
 }
 
+/* Mobile Top Left Button Styling */
+#mobile-switch-btn {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 2000;
+    padding: 10px 15px;
+    font-size: 16px;
+    background-color: #e74c3c;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    transition: background-color 0.2s;
+}
+
+#mobile-switch-btn:hover {
+    background-color: #c0392b;
+}
+
+/* Fullscreen/Mobile Specific Adjustments */
+body.fullscreen-active {
+    background-color: #000 !important; /* Force black background for pillarboxing */
+    margin: 0;
+    padding: 0;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+}
+
+body.fullscreen-active #mobile-switch-btn {
+    display: none; /* Hide button when already in fullscreen */
+}
+
+body.fullscreen-active #bottom-help-hint {
+    display: none; /* Hide hint text in fullscreen */
+}
+
 #app-wrapper {
     display: flex;
     flex-direction: column;

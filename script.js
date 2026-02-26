@@ -1,3 +1,48 @@
+// --- MOBILE FULLSCREEN & SCALING LOGIC ---
+window.isMobileMode = false;
+
+window.goFull = function() {
+    window.isMobileMode = true; // Set flag to enforce fullscreen on future clicks
+    const el = document.documentElement;
+    if (el.requestFullscreen) {
+        el.requestFullscreen();
+    } else if (el.webkitRequestFullscreen) { // older Android fallback
+        el.webkitRequestFullscreen();
+    }
+};
+
+// Re-enforce fullscreen logic on generic body clicks if Mobile Mode is active
+document.body.addEventListener("click", () => {
+    if (window.isMobileMode && !document.fullscreenElement && !document.webkitFullscreenElement) {
+        window.goFull();
+    }
+});
+
+// Handling aspect ratio scale for Mobile/Fullscreen views
+function handleResizeScale() {
+    const gameContainer = document.getElementById('game-container');
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+        document.body.classList.add('fullscreen-active');
+        
+        // Scale to current browser window top-down, maintaining Aspect ratio (leave left/right bars)
+        const scaleX = window.innerWidth / 800;
+        const scaleY = window.innerHeight / 600;
+        const scale = Math.min(scaleX, scaleY);
+        
+        gameContainer.style.transform = `scale(${scale})`;
+        gameContainer.style.transformOrigin = 'center center';
+    } else {
+        document.body.classList.remove('fullscreen-active');
+        gameContainer.style.transform = 'none';
+    }
+}
+
+window.addEventListener('resize', handleResizeScale);
+document.addEventListener('fullscreenchange', handleResizeScale);
+document.addEventListener('webkitfullscreenchange', handleResizeScale);
+
+
+// --- MAIN GAME LOGIC ---
 window.addEventListener('load', function() {
     // --- CANVAS AND UI SETUP ---
     const canvas = document.getElementById('gameCanvas');
@@ -327,13 +372,13 @@ window.addEventListener('load', function() {
     
     function startThrust(e) {
         if (gameOver || isPaused || !player || isBotActive) return;
-        e.preventDefault();
+        if (e && e.preventDefault) e.preventDefault();
         player.isThrusting = true;
     }
 
     function endThrust(e) {
         if (gameOver || isPaused || !player || isBotActive) return;
-        e.preventDefault();
+        if (e && e.preventDefault) e.preventDefault();
         player.isThrusting = false;
     }
 
@@ -400,12 +445,12 @@ window.addEventListener('load', function() {
 
         canvas.addEventListener('mousedown', startThrust);
         canvas.addEventListener('mouseup', endThrust);
-        canvas.addEventListener('touchstart', startThrust);
+        canvas.addEventListener('touchstart', startThrust, {passive: false});
         canvas.addEventListener('touchend', endThrust);
         canvas.addEventListener('mouseleave', endThrust);
 
         window.addEventListener('mousedown', stopAutobotOnInteraction);
-        window.addEventListener('touchstart', stopAutobotOnInteraction);
+        window.addEventListener('touchstart', stopAutobotOnInteraction, {passive: false});
         
         volumeSlider.addEventListener('input', (e) => {
             currentVolume = parseFloat(e.target.value);
@@ -741,7 +786,12 @@ window.addEventListener('load', function() {
         player = Object.create(playerProto);
         player.y = 300; player.velocityY = 0;
         blueBalls = []; redBalls = []; clouds = []; thunderClouds = [];
+        
+        // Ensure fullscreen class stays if active
+        const isFullscreen = document.body.classList.contains('fullscreen-active');
         document.body.className = isNightMode ? 'night-mode' : '';
+        if(isFullscreen) document.body.classList.add('fullscreen-active');
+        
         startScreen.style.display = 'none';
         gameOverScreen.style.display = 'none';
         updateUI();
