@@ -2,33 +2,28 @@
 window.isMobileMode = false;
 
 window.goFull = function() {
-    window.isMobileMode = true; // Set flag to enforce fullscreen on future clicks
+    window.isMobileMode = true; 
     const el = document.documentElement;
     if (el.requestFullscreen) {
         el.requestFullscreen();
-    } else if (el.webkitRequestFullscreen) { // older Android fallback
+    } else if (el.webkitRequestFullscreen) { 
         el.webkitRequestFullscreen();
     }
 };
 
-// Re-enforce fullscreen logic on generic body clicks if Mobile Mode is active
 document.body.addEventListener("click", () => {
     if (window.isMobileMode && !document.fullscreenElement && !document.webkitFullscreenElement) {
         window.goFull();
     }
 });
 
-// Handling aspect ratio scale for Mobile/Fullscreen views
 function handleResizeScale() {
     const gameContainer = document.getElementById('game-container');
     if (document.fullscreenElement || document.webkitFullscreenElement) {
         document.body.classList.add('fullscreen-active');
-        
-        // Scale to current browser window top-down, maintaining Aspect ratio (leave left/right bars)
         const scaleX = window.innerWidth / 800;
         const scaleY = window.innerHeight / 600;
         const scale = Math.min(scaleX, scaleY);
-        
         gameContainer.style.transform = `scale(${scale})`;
         gameContainer.style.transformOrigin = 'center center';
     } else {
@@ -44,7 +39,6 @@ document.addEventListener('webkitfullscreenchange', handleResizeScale);
 
 // --- MAIN GAME LOGIC ---
 window.addEventListener('load', function() {
-    // --- CANVAS AND UI SETUP ---
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
     canvas.width = 800;
@@ -60,6 +54,7 @@ window.addEventListener('load', function() {
     const finalScoreElement = document.getElementById('final-score');
     const gameOverReasonElement = document.getElementById('game-over-reason');
     const botModeDisplay = document.getElementById('bot-mode-display');
+    const fpsDisplay = document.getElementById('fps-display');
     
     // Buttons and Controls
     const startDayBtn = document.getElementById('start-day-button');
@@ -73,13 +68,15 @@ window.addEventListener('load', function() {
     const difficultySelect = document.getElementById('difficulty-select');
     const startDifficultySelect = document.getElementById('start-difficulty-select');
 
-    // Developer Tools Elements
+    // NEW: FPS Controls
+    const toggleFpsLock = document.getElementById('toggle-fps-lock');
+    const toggleShowFps = document.getElementById('toggle-show-fps');
+
     const devControlsSection = document.getElementById('dev-controls-section');
     const devToggleHitboxes = document.getElementById('dev-toggle-hitboxes');
     const devToggleBotPath = document.getElementById('dev-toggle-bot-path');
     const devToggleBotTarget = document.getElementById('dev-toggle-bot-target');
 
-    // Difficulty Slider Elements
     const customDifficultySettings = document.getElementById('custom-difficulty-settings');
     const blueBallSlider = document.getElementById('blue-ball-slider');
     const blueBallValue = document.getElementById('blue-ball-value');
@@ -102,15 +99,22 @@ window.addEventListener('load', function() {
     let gameOverReason = '';
     let damageMessage = { text: '', timer: 0 };
     
-    // --- GAMEPAD STATE ---
+    // --- FPS & TIMING VARIABLES ---
+    let isFpsLocked = true; // Default ON
+    let fpsLockInterval = 1000 / 60; // 60 FPS
+    let lastFrameTime = 0;
+    
+    // FPS Counter logic
+    let showFpsCounter = false;
+    let frameCount = 0;
+    let lastFpsUpdateTime = 0;
+
     let playerGamepadAssignment = null; 
     let gamepadLastThrustState = false; 
     const gamepads = {}; 
 
-    // Difficulty State Management
     let difficulty = 'medium';
     let lastSelectedPreset = 'medium';
-
     const DIFFICULTY_PRESETS = {
         easy:       { blueBallBase: 60, redBall: 120, thunderCloud: 400 },
         medium:     { blueBallBase: 70, redBall: 100, thunderCloud: 350 },
@@ -118,7 +122,6 @@ window.addEventListener('load', function() {
     };
     let currentRates = { ...DIFFICULTY_PRESETS.medium };
     
-    // --- Developer Mode State Enhancement ---
     let isDevMode = false; 
     let isFirstDevModeToggle = true; 
     let devSettings = {
@@ -127,17 +130,14 @@ window.addEventListener('load', function() {
         showBotTarget: false
     };
     
-    // --- AUTOBOT/IDLE MODE ---
     let autobotCountdown = 7; 
     let countdownInterval;
-    
     let isBotActive = false;
     let activeBotMode = 1; 
     let botTarget = null; 
 
     // --- AUDIO SETUP ---
-    let audioCtx, masterGain;
-    let engineSound, collectSound, damageSound;
+    let audioCtx, masterGain, engineSound, collectSound, damageSound;
     let currentVolume = 0.1; 
     let isMuted = false;
 
@@ -203,7 +203,6 @@ window.addEventListener('load', function() {
             engineSound.isPlaying = false;
         }
     }
-
 
     // --- GAME OBJECTS ---
     let player, blueBalls, redBalls, clouds, thunderClouds;
@@ -287,38 +286,26 @@ window.addEventListener('load', function() {
         update() { this.x -= gameSpeed * (this.isThunder ? 0.6 : 0.4); }
     }
 
-    // --- GAMEPAD INPUT HANDLER ---
     function handleGamepadInput() {
         if (playerGamepadAssignment === null) return;
-
         const polledPads = navigator.getGamepads ? navigator.getGamepads() : [];
         if (!polledPads || !polledPads[playerGamepadAssignment]) return;
 
         const pad = polledPads[playerGamepadAssignment];
+        const FACE_BUTTON_INDICES = [0, 1, 2, 3]; 
+        const ALT_THRUST_BUTTON_INDEX = 7;      
 
-        // === FIX START: Check all face buttons (A, B, X, Y) ===
-        // Define constants for thrust buttons
-        const FACE_BUTTON_INDICES = [0, 1, 2, 3]; // Standard mapping for A, B, X, Y
-        const ALT_THRUST_BUTTON_INDEX = 7;       // Right Trigger
-
-        // Check if ANY face button is pressed using .some()
         const faceButtonPressed = FACE_BUTTON_INDICES.some(index => pad.buttons[index].pressed);
-        
-        // Final thrust check includes face buttons OR the trigger
         const isThrustingNow = faceButtonPressed || pad.buttons[ALT_THRUST_BUTTON_INDEX].value > 0.1;
-        // === FIX END ===
 
         if (isThrustingNow && !gamepadLastThrustState) {
             startThrust({ preventDefault: () => {} });
         } else if (!isThrustingNow && gamepadLastThrustState) {
             endThrust({ preventDefault: () => {} });
         }
-
         gamepadLastThrustState = isThrustingNow;
     }
 
-
-    // --- PAGE VISIBILITY API FOR AUDIO ---
     function handleVisibilityChange() {
         if (!audioCtx) return;
         if (document.hidden) {
@@ -331,7 +318,10 @@ window.addEventListener('load', function() {
         } else {
             if (gameIsActive && isPaused && helpScreen.style.display !== 'block') {
                 isPaused = false;
-                if (!animationFrameId) animate();
+                if (!animationFrameId) {
+                    lastFrameTime = performance.now();
+                    animate(lastFrameTime);
+                }
             }
             if (audioCtx.state === 'suspended') audioCtx.resume();
         }
@@ -340,13 +330,10 @@ window.addEventListener('load', function() {
     function updateSlidersFromPreset(presetName) {
         const preset = DIFFICULTY_PRESETS[presetName];
         if (!preset) return;
-    
         blueBallSlider.value = preset.blueBallBase;
         blueBallValue.textContent = preset.blueBallBase;
-        
         redBallSlider.value = preset.redBall;
         redBallValue.textContent = preset.redBall;
-    
         thundercloudSlider.value = preset.thunderCloud;
         thundercloudValue.textContent = preset.thunderCloud;
     }
@@ -405,7 +392,6 @@ window.addEventListener('load', function() {
             if (gameIsActive) {
                 if (e.code === 'KeyB') {
                     isBotActive = !isBotActive;
-                    console.log(`%cBot Mode is now ${isBotActive ? 'ACTIVE' : 'INACTIVE'} (Mode ${activeBotMode})`, 'color: #00A0F0; font-weight: bold;');
                     if (!isBotActive) {
                         player.isThrusting = false;
                         botTarget = null; 
@@ -414,7 +400,6 @@ window.addEventListener('load', function() {
                 }
                 if (['1', '2', '3', '4'].includes(e.key)) {
                     activeBotMode = parseInt(e.key);
-                    console.log(`%cBot personality set to: ${activeBotMode}`, 'color: #00A0F0; font-weight: bold;');
                     return; 
                 }
                 if (e.code === 'KeyD') {
@@ -428,13 +413,11 @@ window.addEventListener('load', function() {
                     devToggleBotTarget.checked = devSettings.showBotTarget;
                     devToggleBotPath.checked = devSettings.showBotPath;
                     devControlsSection.style.display = isDevMode ? 'block' : 'none';
-                    console.log('Dev Mode:', isDevMode ? 'ON' : 'OFF');
                     return;
                 }
             }
 
             if (e.code === 'Space' || e.code === 'ArrowUp') startThrust(e);
-            
             stopAutobotOnInteraction();
         });
 
@@ -477,17 +460,25 @@ window.addEventListener('load', function() {
         
         difficultySelect.addEventListener('change', (e) => handleDifficultyChange(e.target.value));
         startDifficultySelect.addEventListener('change', (e) => handleDifficultyChange(e.target.value));
-    
+        
+        // --- NEW: FPS SETTINGS LISTENERS ---
+        toggleFpsLock.addEventListener('change', (e) => {
+            isFpsLocked = e.target.checked;
+        });
+
+        toggleShowFps.addEventListener('change', (e) => {
+            showFpsCounter = e.target.checked;
+            fpsDisplay.style.display = showFpsCounter ? 'block' : 'none';
+        });
+
         blueBallSlider.addEventListener('input', (e) => {
             currentRates.blueBallBase = parseInt(e.target.value);
             blueBallValue.textContent = e.target.value;
         });
-    
         redBallSlider.addEventListener('input', (e) => {
             currentRates.redBall = parseInt(e.target.value);
             redBallValue.textContent = e.target.value;
         });
-    
         thundercloudSlider.addEventListener('input', (e) => {
             currentRates.thunderCloud = parseInt(e.target.value);
             thundercloudValue.textContent = e.target.value;
@@ -498,30 +489,20 @@ window.addEventListener('load', function() {
         devToggleBotTarget.addEventListener('change', () => { devSettings.showBotTarget = devToggleBotTarget.checked; });
 
         window.addEventListener("gamepadconnected", e => {
-            console.log(`Gamepad connected at index ${e.gamepad.index}: ${e.gamepad.id}.`);
             gamepads[e.gamepad.index] = e.gamepad;
-            if (playerGamepadAssignment === null) {
-                playerGamepadAssignment = e.gamepad.index;
-                console.log(`Gamepad ${e.gamepad.index} assigned to player.`);
-            }
+            if (playerGamepadAssignment === null) playerGamepadAssignment = e.gamepad.index;
         });
-
         window.addEventListener("gamepaddisconnected", e => {
-            console.log(`Gamepad disconnected from index ${e.gamepad.index}: ${e.gamepad.id}.`);
             delete gamepads[e.gamepad.index];
             if (playerGamepadAssignment === e.gamepad.index) {
                 playerGamepadAssignment = null;
-                console.log(`Player's gamepad disconnected.`);
                 const firstAvailableGamepad = Object.keys(gamepads)[0];
-                if (firstAvailableGamepad) {
-                    playerGamepadAssignment = parseInt(firstAvailableGamepad, 10);
-                    console.log(`Switched to Gamepad ${playerGamepadAssignment}.`);
-                }
+                if (firstAvailableGamepad) playerGamepadAssignment = parseInt(firstAvailableGamepad, 10);
             }
         });
     }
 
-    // --- BOT AI ALGORITHMS ---
+    // --- BOT AI FUNCTIONS ---
     function botMode_Collector() {
         botTarget = null;
         let target = null;
@@ -556,7 +537,7 @@ window.addEventListener('load', function() {
                 threatRight = threat.x + threat.radius;
                 threatTop = threat.y - threat.radius;
                 threatBottom = threat.y + threat.radius;
-            } else { // Cloud
+            } else { 
                 threatLeft = threat.x + threat.boundingBoxOffsetX;
                 threatRight = threatLeft + threat.width;
                 threatTop = threat.y + threat.boundingBoxOffsetY;
@@ -590,7 +571,7 @@ window.addEventListener('load', function() {
             if (mostUrgentThreat instanceof Ball) {
                 threatTop = mostUrgentThreat.y - mostUrgentThreat.radius;
                 threatBottom = mostUrgentThreat.y + mostUrgentThreat.radius;
-            } else { // Cloud
+            } else { 
                 threatTop = mostUrgentThreat.y + mostUrgentThreat.boundingBoxOffsetY;
                 threatBottom = threatTop + mostUrgentThreat.height;
             }
@@ -692,7 +673,7 @@ window.addEventListener('load', function() {
 
 
     // --- GAME STATE & LOOP ---
-function showStartScreen() {
+    function showStartScreen() {
         gameIsActive = false;
         isPaused = false;
         isBotActive = false;
@@ -701,7 +682,6 @@ function showStartScreen() {
         helpScreen.style.display = 'none';
         botModeDisplay.style.display = 'none';
         
-        // Preserve fullscreen class if it's currently active
         const isFullscreen = document.body.classList.contains('fullscreen-active');
         document.body.className = 'night-mode'; 
         if (isFullscreen) document.body.classList.add('fullscreen-active');
@@ -730,7 +710,8 @@ function showStartScreen() {
                     audioCtx.resume();
                 }
                 if (!animationFrameId) { 
-                    animate(); 
+                    lastFrameTime = performance.now();
+                    animate(lastFrameTime); 
                 }
             }
         } else {
@@ -791,7 +772,6 @@ function showStartScreen() {
         player.y = 300; player.velocityY = 0;
         blueBalls = []; redBalls = []; clouds = []; thunderClouds = [];
         
-        // Ensure fullscreen class stays if active
         const isFullscreen = document.body.classList.contains('fullscreen-active');
         document.body.className = isNightMode ? 'night-mode' : '';
         if(isFullscreen) document.body.classList.add('fullscreen-active');
@@ -801,7 +781,13 @@ function showStartScreen() {
         updateUI();
         toggleEngineSound(true);
         if (animationFrameId) cancelAnimationFrame(animationFrameId);
-        animate();
+        
+        // Reset timing variables for new game
+        lastFrameTime = performance.now();
+        lastFpsUpdateTime = lastFrameTime;
+        frameCount = 0;
+        
+        animate(lastFrameTime);
     }
     
     function endGame() {
@@ -1037,11 +1023,47 @@ function showStartScreen() {
         }
     }
 
-    function animate() {
+    // --- MAIN LOOP WITH FPS LOCK ---
+    function animate(timestamp) {
+        // Handle Game Over
         if (gameOver) {
             if (animationFrameId) cancelAnimationFrame(animationFrameId);
             return;
         }
+
+        // Initialize lastFrameTime if not set
+        if (!lastFrameTime) lastFrameTime = timestamp;
+
+        // Calculate time elapsed since last frame
+        const elapsed = timestamp - lastFrameTime;
+
+        // FPS LOCK LOGIC
+        if (isFpsLocked) {
+            // If not enough time has passed for the desired FPS, skip this frame
+            if (elapsed < fpsLockInterval) {
+                animationFrameId = requestAnimationFrame(animate);
+                return;
+            }
+            // Adjust lastFrameTime to account for the interval, preventing drift
+            lastFrameTime = timestamp - (elapsed % fpsLockInterval);
+        } else {
+            // Unlocked FPS: Just update time
+            lastFrameTime = timestamp;
+        }
+
+        // FPS COUNTER CALCULATION
+        if (showFpsCounter) {
+            if (!lastFpsUpdateTime) lastFpsUpdateTime = timestamp;
+            frameCount++;
+            if (timestamp - lastFpsUpdateTime >= 1000) {
+                const fps = frameCount; 
+                document.getElementById('fps-display').textContent = `FPS: ${fps}`;
+                frameCount = 0;
+                lastFpsUpdateTime = timestamp;
+            }
+        }
+
+        // --- ACTUAL GAME LOGIC START ---
         
         handleGamepadInput();
         
@@ -1070,6 +1092,8 @@ function showStartScreen() {
         updateGameStatus();
 
         frame++;
+        // --- GAME LOGIC END ---
+
         animationFrameId = requestAnimationFrame(animate);
     }
 
@@ -1102,6 +1126,10 @@ function showStartScreen() {
         devToggleHitboxes.checked = devSettings.showHitboxes;
         devToggleBotPath.checked = devSettings.showBotPath;
         devToggleBotTarget.checked = devSettings.showBotTarget;
+        
+        // Sync FPS UI check state with variable
+        toggleFpsLock.checked = isFpsLocked;
+        toggleShowFps.checked = showFpsCounter;
 
         showStartScreen();
     }

@@ -7,13 +7,16 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- Mobile site button added to top left corner -->
+    <!-- Mobile site button -->
     <button id="mobile-switch-btn" onclick="goFull()">Switch to mobile</button>
 
     <div id="app-wrapper">
         <div id="game-container">
             <canvas id="gameCanvas" width="800" height="600"></canvas>
             
+            <!-- FPS Counter (Hidden by default) -->
+            <div id="fps-display" style="display: none;">FPS: 60</div>
+
             <!-- In-Game Status Display for Bot Mode -->
             <div id="bot-mode-display" class="overlay-text"></div>
 
@@ -41,7 +44,6 @@
                 <button id="start-day-button">Start Day Flight</button>
                 <button id="start-night-button">Start Night Flight</button>
                 
-                <!-- MODIFICATION START: Difficulty setting on main menu -->
                 <div class="difficulty-setting-main">
                     <label for="start-difficulty-select">Difficulty:</label>
                     <select id="start-difficulty-select">
@@ -51,7 +53,6 @@
                         <option value="custom">Custom</option>
                     </select>
                 </div>
-                <!-- MODIFICATION END -->
 
                 <button id="help-button">How to Play</button>
                 <p class="autobot-info">Wait 7 seconds for Autobot demo...</p>
@@ -60,31 +61,18 @@
             <!-- Help Screen -->
             <div id="help-screen" class="overlay" style="display: none;">
                 <h3>About</h3>
-                <p>Side-Scrolling Flyer is a web-based, Flappy Bird–inspired and Hugo Flying Level -game with more action, clever bots, and developer tools. Dodge obstacles, collect blue balls for fuel and score, and see how long you can survive— or let the built-in bot play for you!</p>
+                <p>Side-Scrolling Flyer is a web-based, Flappy Bird–inspired game.</p>
                 <p>Repo: <a href="https://github.com/pemmyz/js_hugoflights/" target="_blank" rel="noopener noreferrer">https://github.com/pemmyz/js_hugoflights/</a></p>
-                <h2>How to Play</h2>
-                <p><strong>Controls:</strong> Press <strong>Spacebar</strong>, <strong>ArrowUp</strong>, or <strong>Tap/Click the Screen</strong> to fly up.</p>
-                <!-- === GAMEPAD CONTROLS ADDED HERE === -->
-                <p><strong>Gamepad:</strong> Use the <strong>'A' Button</strong> or <strong>Right Trigger</strong> to fly up.</p>
-                <p><strong>Objective:</strong> Fly as far as you can and collect points!</p>
-                <ul>
-                    <li><strong style="color: blue;">Collect Blue Balls:</strong> Gain points and restore fuel.</li>
-                    <li><strong style="color: red;">Avoid Red Balls:</strong> These will damage your plane.</li>
-                    <li><strong style="color: #444;">Avoid Thunder Clouds:</strong> These will severely damage your plane.</li>
-                </ul>
-                <p>Your flight ends if you run out of <strong>Health</strong> or <strong>Fuel</strong>.</p>
                 
-                <p>Press <strong>D</strong>-key to toggle developer mode.</p>
-
-                <!-- Bot help section -->
+                <h2>How to Play</h2>
+                <p><strong>Controls:</strong> Press <strong>Spacebar</strong>, <strong>ArrowUp</strong>, or <strong>Tap/Click</strong>.</p>
+                <p><strong>Gamepad:</strong> <strong>'A' Button</strong> or <strong>Right Trigger</strong>.</p>
+                
                 <div class="controls-section">
-                    <h3>Bot Controls (In-Game)</h3>
+                    <h3>Bot Controls</h3>
                     <ul>
-                        <li><strong>B Key:</strong> Toggle the autopilot Bot ON/OFF.</li>
-                        <li><strong>1 Key:</strong> Activates "Collector Mode" (only seeks blue balls, ignores threats).</li>
-                        <li><strong>2 Key:</strong> Activates "Smart Mode" (avoids threats & collects balls).</li>
-                        <li><strong>3 Key:</strong> Activates "Avoider Mode" (cautiously avoids all threats, ignores collectibles).</li>
-                        <li><strong>4 Key:</strong> Activates "Kamikaze Mode" (recklessly seeks out threats).</li>
+                        <li><strong>B Key:</strong> Toggle Bot ON/OFF.</li>
+                        <li><strong>1-4 Keys:</strong> Change Bot Personality.</li>
                     </ul>
                 </div>
 
@@ -92,25 +80,28 @@
                 <div id="dev-controls-section" class="controls-section" style="display: none;">
                     <h3>Developer Tools</h3>
                     <ul>
-                        <li>
-                            <input type="checkbox" id="dev-toggle-hitboxes">
-                            <label for="dev-toggle-hitboxes">Show Hitboxes</label>
-                        </li>
-                        <li>
-                            <input type="checkbox" id="dev-toggle-bot-path">
-                            <label for="dev-toggle-bot-path">Show Bot Path</label>
-                        </li>
-                        <li>
-                            <input type="checkbox" id="dev-toggle-bot-target">
-                            <label for="dev-toggle-bot-target">Show Bot Target</label>
-                        </li>
+                        <li><input type="checkbox" id="dev-toggle-hitboxes"><label for="dev-toggle-hitboxes">Show Hitboxes</label></li>
+                        <li><input type="checkbox" id="dev-toggle-bot-path"><label for="dev-toggle-bot-path">Show Bot Path</label></li>
+                        <li><input type="checkbox" id="dev-toggle-bot-target"><label for="dev-toggle-bot-target">Show Bot Target</label></li>
                     </ul>
                 </div>
                 
-                <!-- MODIFICATION START: Difficulty Settings -->
+                <!-- Game Settings with FPS Controls -->
                 <div class="controls-section">
                     <h3>Game Settings</h3>
-                    <div class="setting-item">
+                    
+                    <!-- NEW: Performance Settings -->
+                    <div class="setting-row">
+                        <input type="checkbox" id="toggle-fps-lock" checked>
+                        <label for="toggle-fps-lock">Lock FPS to 60 (Recommended)</label>
+                    </div>
+                    <div class="setting-row">
+                        <input type="checkbox" id="toggle-show-fps">
+                        <label for="toggle-show-fps">Show FPS Counter</label>
+                    </div>
+                    <!-- End New Settings -->
+
+                    <div class="setting-item" style="margin-top: 10px;">
                         <label for="difficulty-select">Difficulty:</label>
                         <select id="difficulty-select">
                             <option value="easy">Easy</option>
@@ -120,7 +111,7 @@
                         </select>
                     </div>
 
-                    <!-- Custom Sliders Container -->
+                    <!-- Custom Sliders -->
                     <div id="custom-difficulty-settings" style="display: none;">
                         <div class="slider-control">
                             <label for="blue-ball-slider">Blue Ball Freq:</label>
@@ -137,10 +128,8 @@
                             <input type="range" id="thundercloud-slider" min="200" max="500" value="300">
                             <span id="thundercloud-value">300</span>
                         </div>
-                        <p class="slider-note">Note: Lower numbers mean more frequent spawns.</p>
                     </div>
                 </div>
-                <!-- MODIFICATION END -->
 
                 <div id="audio-controls">
                     <label for="volume-slider">Volume:</label>
