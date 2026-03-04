@@ -68,9 +68,10 @@ window.addEventListener('load', function() {
     const difficultySelect = document.getElementById('difficulty-select');
     const startDifficultySelect = document.getElementById('start-difficulty-select');
 
-    // NEW: FPS Controls
+    // NEW: FPS & Fuel Controls
     const toggleFpsLock = document.getElementById('toggle-fps-lock');
     const toggleShowFps = document.getElementById('toggle-show-fps');
+    const toggleDoubleFuel = document.getElementById('toggle-double-fuel');
 
     const devControlsSection = document.getElementById('dev-controls-section');
     const devToggleHitboxes = document.getElementById('dev-toggle-hitboxes');
@@ -108,6 +109,9 @@ window.addEventListener('load', function() {
     let showFpsCounter = false;
     let frameCount = 0;
     let lastFpsUpdateTime = 0;
+    
+    // Fuel logic
+    let fuelDoubleDuration = false;
 
     let playerGamepadAssignment = null; 
     let gamepadLastThrustState = false; 
@@ -461,7 +465,7 @@ window.addEventListener('load', function() {
         difficultySelect.addEventListener('change', (e) => handleDifficultyChange(e.target.value));
         startDifficultySelect.addEventListener('change', (e) => handleDifficultyChange(e.target.value));
         
-        // --- NEW: FPS SETTINGS LISTENERS ---
+        // --- FPS & SETTINGS LISTENERS ---
         toggleFpsLock.addEventListener('change', (e) => {
             isFpsLocked = e.target.checked;
         });
@@ -469,6 +473,10 @@ window.addEventListener('load', function() {
         toggleShowFps.addEventListener('change', (e) => {
             showFpsCounter = e.target.checked;
             fpsDisplay.style.display = showFpsCounter ? 'block' : 'none';
+        });
+
+        toggleDoubleFuel.addEventListener('change', (e) => {
+            fuelDoubleDuration = e.target.checked;
         });
 
         blueBallSlider.addEventListener('input', (e) => {
@@ -922,7 +930,10 @@ window.addEventListener('load', function() {
     }
     
     function updateGameStatus() {
-        fuel -= player.isThrusting ? 0.12 : 0.04;
+        const thrustCost = fuelDoubleDuration ? 0.06 : 0.12;
+        const idleCost = fuelDoubleDuration ? 0.02 : 0.04;
+        fuel -= player.isThrusting ? thrustCost : idleCost;
+        
         if (health <= 0) {
             health = 0;
             gameOverReason = "Ran out of health!";
@@ -1130,6 +1141,7 @@ window.addEventListener('load', function() {
         // Sync FPS UI check state with variable
         toggleFpsLock.checked = isFpsLocked;
         toggleShowFps.checked = showFpsCounter;
+        toggleDoubleFuel.checked = fuelDoubleDuration;
 
         showStartScreen();
     }
